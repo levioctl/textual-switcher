@@ -1,6 +1,6 @@
 import socket
 import subprocess
-from gi.repository import Gtk, GObject
+from gi.repository import Gtk, GdkX11, GObject
 
 
 KEYCODE_ENTER = 36
@@ -12,6 +12,7 @@ class EntryWindow(Gtk.Window):
         Gtk.Window.__init__(self, title="Entry Demo")
         self.set_size_request(200, 300)
 
+        self._xid = None
         self._normalized_search_key = ""
 
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
@@ -24,9 +25,7 @@ class EntryWindow(Gtk.Window):
         vbox.pack_start(self.entry, True, True, 0)
 
         self.task_liststore = Gtk.ListStore(str, str)
-        task_list = self._get_windows_list()
-        for window_id, window_name in task_list:
-            self.task_liststore.append([window_name, window_id])
+        self._update_task_liststore()
 
         self.task_filter = self.task_liststore.filter_new()
         self.task_filter.set_visible_func(self.task_filter_func)
@@ -42,6 +41,25 @@ class EntryWindow(Gtk.Window):
         scrollable_treelist.set_vexpand(True)
         scrollable_treelist.add(self.treeview)
         vbox.pack_start(scrollable_treelist, True, True, 0)
+        self._select_first()
+
+    def _update_xid(self):
+        if self._xid is None:
+            try:
+                self._xid = self.get_window().get_xid()
+            except:
+                # No XID yet
+                pass
+
+    def _update_task_liststore(self):
+        self.task_liststore.clear()
+        self._update_xid()
+        task_list = self._get_windows_list()
+        for window_id, window_name in task_list:
+            print self._xid, window_id, window_name
+            window_id_nr = int(window_id, 16)
+            if self._xid != window_id_nr:
+                self.task_liststore.append([window_name, window_id])
 
     def _entry_key_press(self, *args):
         keycode = args[1].get_keycode()[1]
@@ -59,7 +77,11 @@ class EntryWindow(Gtk.Window):
         selection = self.treeview.get_selection()
         _filter, _iter = selection.get_selected()
         if _iter is None:
-            _iter = _filter.get_iter(0)
+            try:
+                _iter = _filter.get_iter(0)
+            except ValueError:
+                # Nothing to select
+                return
         window_id = _filter.get_value(_iter, 1)
         window_title = _filter.get_value(_iter, 0)
         # move the selected window to the current workspace
@@ -68,7 +90,13 @@ class EntryWindow(Gtk.Window):
         # on firefox windows without first moving the window).
         print window_id, window_title
         cmd = ["wmctrl", "-iR", window_id]
-        subprocess.check_call(cmd)
+        try:
+            subprocess.check_call(cmd)
+        except subprocess.CalledProcessError:
+            # Actual tasks list has changed since last reload
+            self._update_task_liststore()
+            self._select_first()
+            return
 
     def _get_windows_list(self):
         wlistOutput = subprocess.check_output(["wmctrl", "-l"])
@@ -82,6 +110,10 @@ class EntryWindow(Gtk.Window):
         search_key = entry.get_text()
         self._normalized_search_key = self._normalize(search_key)
         self.task_filter.refilter()
+        self._select_first()
+
+    def _select_first(self):
+        self.treeview.set_cursor(0)
 
     def _normalize(self, title):
         for c in [" ", "\n", "\t"]:
@@ -100,4 +132,5 @@ class EntryWindow(Gtk.Window):
 win = EntryWindow()
 win.connect("delete-event", Gtk.main_quit)
 win.show_all()
+win.realize()
 Gtk.main()
