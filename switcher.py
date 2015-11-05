@@ -4,6 +4,8 @@ from gi.repository import Gtk, GdkX11, GObject
 
 
 KEYCODE_ENTER = 36
+KEYCODE_ARROW_DOWN = 116
+KEYCODE_ARROW_UP = 111
 
 
 class EntryWindow(Gtk.Window):
@@ -21,7 +23,7 @@ class EntryWindow(Gtk.Window):
         self.entry = Gtk.Entry()
         self.entry.set_text("Hello World")
         self.entry.connect("changed", self._text_changed)
-        self.entry.connect("key-press-event", self._entry_key_press)
+        self.entry.connect("key-press-event", self._entry_keypress)
         vbox.pack_start(self.entry, True, True, 0)
 
         self.task_liststore = Gtk.ListStore(str, str)
@@ -32,6 +34,7 @@ class EntryWindow(Gtk.Window):
 
         self.treeview = Gtk.TreeView.new_with_model(self.task_filter)
         self.treeview.connect("row-activated", self._window_selected)
+        self.treeview.connect("key-press-event", self._treeview_keypress)
         for i, column_title in enumerate(["Task name"]):
             renderer = Gtk.CellRendererText()
             column = Gtk.TreeViewColumn(column_title, renderer, text=i)
@@ -61,10 +64,31 @@ class EntryWindow(Gtk.Window):
             if self._xid != window_id_nr:
                 self.task_liststore.append([window_name, window_id])
 
-    def _entry_key_press(self, *args):
+    def _entry_keypress(self, *args):
         keycode = args[1].get_keycode()[1]
         if keycode == KEYCODE_ENTER:
            self._window_selected()
+        print keycode
+        # Don't switch focus in case of up/down arrow
+        if keycode == KEYCODE_ARROW_DOWN:
+            cursor = self.treeview.get_cursor()[0]
+            if cursor is not None:
+                index = cursor.get_indices()[0]
+                self.treeview.set_cursor(index + 1)
+            return True
+        elif keycode == KEYCODE_ARROW_UP:
+            cursor = self.treeview.get_cursor()[0]
+            if cursor is not None:
+                index = cursor.get_indices()[0]
+                self.treeview.set_cursor(index - 1)
+            return True
+
+    def _treeview_keypress(self, *args):
+        keycode = args[1].get_keycode()[1]
+        print keycode
+        if keycode not in (KEYCODE_ARROW_UP, KEYCODE_ARROW_DOWN):
+            self.entry.grab_focus()
+            return False
 
     def _check_window(self, w_id):
         w_type = subprocess.check_output(["xprop", "-id", w_id])
