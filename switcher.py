@@ -1,3 +1,4 @@
+import sys
 import socket
 import subprocess
 from gi.repository import Gtk, GdkX11, GObject
@@ -116,6 +117,7 @@ class EntryWindow(Gtk.Window):
         cmd = ["wmctrl", "-iR", window_id]
         try:
             subprocess.check_call(cmd)
+            sys.exit(0)
         except subprocess.CalledProcessError:
             # Actual tasks list has changed since last reload
             self._update_task_liststore()
