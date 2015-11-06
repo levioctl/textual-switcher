@@ -11,20 +11,20 @@ KEYCODE_ARROW_UP = 111
 class EntryWindow(Gtk.Window):
 
     def __init__(self):
-        Gtk.Window.__init__(self, title="Entry Demo")
-        self.set_size_request(200, 300)
+        Gtk.Window.__init__(self, title="Textual Switcher")
+        self.set_size_request(300, 300)
 
         self._xid = None
         self._normalized_search_key = ""
 
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.add(vbox)
 
         self.entry = Gtk.Entry()
         self.entry.set_text("Hello World")
         self.entry.connect("changed", self._text_changed)
         self.entry.connect("key-press-event", self._entry_keypress)
-        vbox.pack_start(self.entry, True, True, 0)
+        vbox.pack_start(self.entry, expand=False, fill=True, padding=0)
 
         self.task_liststore = Gtk.ListStore(str, str)
         self._update_task_liststore()
