@@ -137,6 +137,7 @@ class EntryWindow(Gtk.Window):
                 exit(0)
             elif keycode == KEYCODE_L:
                 self._update_task_liststore()
+                self._select_first()
 
     def _treeview_keypress(self, *args):
         keycode = args[1].get_keycode()[1]
