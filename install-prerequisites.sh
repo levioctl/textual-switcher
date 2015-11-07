@@ -14,4 +14,5 @@ fi
 
 ${PKG_MGR_CMD} x11-utils
 ${PKG_MGR_CMD} wmctrl
+${PKG_MGR_CMD} dconf-cli
 
