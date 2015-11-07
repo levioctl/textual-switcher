@@ -29,7 +29,7 @@ class EntryWindow(Gtk.Window):
         self.add(vbox)
 
         self.entry = Gtk.Entry()
-        self.entry.set_text("Type a search filter here")
+        self.entry.set_text("")
         self.entry.connect("changed", self._text_changed)
         self.entry.connect("key-press-event", self._entry_keypress)
         self.entry.connect("key-release-event", self._entry_keyrelease)
