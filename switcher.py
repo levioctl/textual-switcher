@@ -56,6 +56,15 @@ class EntryWindow(Gtk.Window):
         self._select_first()
         self._is_ctrl_pressed = False
 
+        label = Gtk.Label()
+        label.set_text("Keyboard shortcuts:\n"
+                       "Ctrl+J: Move the selection down by one\n"
+                       "Ctrl+K: Move the selection up by one\n"
+                       "Ctrl+L: Reload the windows list\n"
+                       "Ctrl+W: Exit")
+        label.set_justify(Gtk.Justification.LEFT)
+        vbox.pack_start(label, False, True, 0)
+
     def _entry_set_focus(self, *args):
         print "focus"
 
