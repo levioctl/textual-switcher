@@ -12,6 +12,7 @@ KEYCODE_J = 44
 KEYCODE_K = 45
 KEYCODE_L = 46
 KEYCODE_W = 25
+KEYCODE_C = 54
 
 
 class EntryWindow(Gtk.Window):
@@ -61,6 +62,7 @@ class EntryWindow(Gtk.Window):
                        "Ctrl+J: Move the selection down by one\n"
                        "Ctrl+K: Move the selection up by one\n"
                        "Ctrl+L: Reload the windows list\n"
+                       "Ctrl+C: Empty text filter\n"
                        "Ctrl+W: Exit")
         label.set_justify(Gtk.Justification.LEFT)
         vbox.pack_start(label, False, True, 0)
@@ -134,10 +136,12 @@ class EntryWindow(Gtk.Window):
             elif keycode == KEYCODE_K:
                 self._select_previous_item()
             elif keycode == KEYCODE_W:
-                exit(0)
+                sys.exit(0)
             elif keycode == KEYCODE_L:
                 self._update_task_liststore()
                 self._select_first()
+            elif keycode == KEYCODE_C:
+                self.entry.set_text("")
 
     def _treeview_keypress(self, *args):
         keycode = args[1].get_keycode()[1]
