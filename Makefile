@@ -7,7 +7,7 @@ install:
 	./install-prerequisites.sh
 	sudo mkdir -p ${INSTALL_DIR}
 	sudo cp switcher.py ${INSTALL_DIR}
-	sudo python apply-binding.py ${INSTALL_DIR}/switcher.py ${KEY_COMBINATION}
+	python apply-binding.py ${INSTALL_DIR}/switcher.py ${KEY_COMBINATION} 
 	@echo "Done. Press " ${KEY_COMBINATION} " to launch the switcher (you might need to restart for the binding to work)."
 
 run:

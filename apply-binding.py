@@ -5,7 +5,22 @@ import subprocess
 
 BINDING_NAME = "textual-switcher"
 CMD = "/usr/bin/python {}"
-BINDING_LIST_PATH = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings"
+CUSTOM_KEYB_PATH = ""
+BINDING_LIST_PATH = ""
+WM = ''
+
+def set_paths(wm):
+    global BINDING_LIST_PATH
+    global CUSTOM_KEYB_PATH
+    global WM
+    if wm == 'cinnamon':
+        BINDING_LIST_PATH = "/org/cinnamon/desktop/keybindings/custom-list"
+        CUSTOM_KEYB_PATH = "/org/cinnamon/desktop/keybindings/custom-keybindings"
+        WM = 'cinnamon'
+    if wm in ('gnome', 'unity'):
+        BINDING_LIST_PATH = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings"
+        CUSTOM_KEYB_PATH = BINDING_LIST_PATH
+        WM = 'gnome'
 
 
 def dconf_write(path, value):
@@ -25,10 +40,11 @@ def get_binding_list():
     bindings = bindings.strip()
     if not bindings:
         return []
+    bindings = bindings[bindings.index("["):] # Deal with '@as'
     bindings = bindings[1:-1]
     bindings = bindings.replace("'", "")
     bindings = bindings.split(",")
-    bindings = [binding.strip() for binding in bindings]
+    bindings = [binding.strip() for binding in bindings if binding.strip()]
     return bindings
 
 
@@ -43,9 +59,13 @@ def set_binding(cmd, key_combination):
         print "A key binding already exists."
         return
     bindings = get_binding_list()
-    new_binding_path = "{}/{}".format(BINDING_LIST_PATH, BINDING_NAME)
-    new_binding_path_with_slash = "{}/".format(new_binding_path)
-    bindings.append(new_binding_path_with_slash)
+    new_binding_path = "{}/{}".format(CUSTOM_KEYB_PATH, BINDING_NAME)
+    if WM == 'gnome':
+        new_binding_path_with_slash = "{}/".format(new_binding_path)
+        bindings.append(new_binding_path_with_slash)
+    elif WM == 'cinnamon':
+        bindings.append(new_binding_path)
+
     dconf_write(BINDING_LIST_PATH, str(bindings))
     print "Setting key binding."
     binding_values = dict(name=BINDING_NAME,
@@ -69,4 +89,12 @@ if __name__ == "__main__":
         sys.exit(1)
     key_combination = sys.argv[2]
     cmd = CMD.format(script_path, key_combination)
+    wm = os.getenv("XDG_CURRENT_DESKTOP")
+    if wm is None:
+        wm = 'gnome' # default
+    if 'cinnamon' in wm.lower():
+        wm = 'cinnamon'
+    else:
+        wm = 'gnome'
+    set_paths(wm)
     set_binding(cmd, key_combination)
