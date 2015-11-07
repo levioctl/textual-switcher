@@ -67,9 +67,6 @@ class EntryWindow(Gtk.Window):
         label.set_justify(Gtk.Justification.LEFT)
         vbox.pack_start(label, False, True, 0)
 
-    def _entry_set_focus(self, *args):
-        print "focus"
-
     def _update_xid(self):
         if self._xid is None:
             try:
