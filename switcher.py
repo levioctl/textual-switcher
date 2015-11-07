@@ -10,6 +10,7 @@ KEYCODE_ARROW_UP = 111
 
 
 class EntryWindow(Gtk.Window):
+    WINDOW_TITLE = "Textual Switcher"
 
     def __init__(self):
         Gtk.Window.__init__(self, title="Textual Switcher")
@@ -25,10 +26,11 @@ class EntryWindow(Gtk.Window):
         self.entry.set_text("Hello World")
         self.entry.connect("changed", self._text_changed)
         self.entry.connect("key-press-event", self._entry_keypress)
+        self.entry.connect("activate", self._entry_activated)
         vbox.pack_start(self.entry, expand=False, fill=True, padding=0)
 
         self.task_liststore = Gtk.ListStore(str, str)
-        self._update_task_liststore()
+        self._update_task_liststore(is_first_time=True)
 
         self.task_filter = self.task_liststore.filter_new()
         self.task_filter.set_visible_func(self.task_filter_func)
@@ -47,6 +49,9 @@ class EntryWindow(Gtk.Window):
         vbox.pack_start(scrollable_treelist, True, True, 0)
         self._select_first()
 
+    def _entry_set_focus(self, *args):
+        print "focus"
+
     def _update_xid(self):
         if self._xid is None:
             try:
@@ -55,20 +60,26 @@ class EntryWindow(Gtk.Window):
                 # No XID yet
                 pass
 
-    def _update_task_liststore(self):
+    def _update_task_liststore(self, is_first_time=False):
         self.task_liststore.clear()
         self._update_xid()
         task_list = self._get_windows_list()
-        for window_id, window_name in task_list:
-            print self._xid, window_id, window_name
+        for window_id, window_title in task_list:
+            print self._xid, window_id, window_title
+            # Enforce only one instance
+            if is_first_time and window_title == self.WINDOW_TITLE:
+                print "Found another instance, exiting."
+                self._focus_on_window(window_id)
+                sys.exit(0)
             window_id_nr = int(window_id, 16)
             if self._xid != window_id_nr:
-                self.task_liststore.append([window_name, window_id])
+                self.task_liststore.append([window_title, window_id])
+
+    def _entry_activated(self, *args):
+        self._window_selected()
 
     def _entry_keypress(self, *args):
         keycode = args[1].get_keycode()[1]
-        if keycode == KEYCODE_ENTER:
-           self._window_selected()
         print keycode
         # Don't switch focus in case of up/down arrow
         if keycode == KEYCODE_ARROW_DOWN:
@@ -114,8 +125,12 @@ class EntryWindow(Gtk.Window):
         # raise it (the command below alone should do the job, but sometimes fails
         # on firefox windows without first moving the window).
         print window_id, window_title
+        self._focus_on_window(window_id)
+
+    def _focus_on_window(self, window_id):
         cmd = ["wmctrl", "-iR", window_id]
         try:
+            print cmd
             subprocess.check_call(cmd)
             sys.exit(0)
         except subprocess.CalledProcessError:
