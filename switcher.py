@@ -18,7 +18,7 @@ class EntryWindow(Gtk.Window):
     WINDOW_TITLE = "Textual Switcher"
 
     def __init__(self):
-        Gtk.Window.__init__(self, title="Textual Switcher")
+        Gtk.Window.__init__(self, title=self.WINDOW_TITLE)
         self.set_size_request(300, 300)
 
         self._xid = None
@@ -28,7 +28,7 @@ class EntryWindow(Gtk.Window):
         self.add(vbox)
 
         self.entry = Gtk.Entry()
-        self.entry.set_text(self.WINDOW_TITLE)
+        self.entry.set_text("Type a search filter here")
         self.entry.connect("changed", self._text_changed)
         self.entry.connect("key-press-event", self._entry_keypress)
         self.entry.connect("key-release-event", self._entry_keyrelease)
