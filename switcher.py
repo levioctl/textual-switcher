@@ -5,8 +5,12 @@ from gi.repository import Gtk, GdkX11, GObject
 
 
 KEYCODE_ENTER = 36
+KEYCODE_CTRL = 36
 KEYCODE_ARROW_DOWN = 116
 KEYCODE_ARROW_UP = 111
+KEYCODE_J = 44
+KEYCODE_K = 45
+KEYCODE_W = 25
 
 
 class EntryWindow(Gtk.Window):
@@ -26,6 +30,7 @@ class EntryWindow(Gtk.Window):
         self.entry.set_text(self.WINDOW_TITLE)
         self.entry.connect("changed", self._text_changed)
         self.entry.connect("key-press-event", self._entry_keypress)
+        self.entry.connect("key-release-event", self._entry_keyrelease)
         self.entry.connect("activate", self._entry_activated)
         vbox.pack_start(self.entry, expand=False, fill=True, padding=0)
 
@@ -48,6 +53,7 @@ class EntryWindow(Gtk.Window):
         scrollable_treelist.add(self.treeview)
         vbox.pack_start(scrollable_treelist, True, True, 0)
         self._select_first()
+        self._is_ctrl_pressed = True
 
     def _entry_set_focus(self, *args):
         print "focus"
@@ -78,26 +84,48 @@ class EntryWindow(Gtk.Window):
     def _entry_activated(self, *args):
         self._window_selected()
 
+    def _entry_keyrelease(self, *args):
+        keycode = args[1].get_keycode()[1]
+        if keycode == KEYCODE_CTRL:
+            self._is_ctrl_pressed = False
+
+    def _select_next_item(self):
+        cursor = self.treeview.get_cursor()[0]
+        if cursor is not None:
+            nr_rows = len(self.task_filter)
+            index = cursor.get_indices()[0]
+            if index < nr_rows - 1:
+                print "down ", index
+                self.treeview.set_cursor(index + 1)
+        return True
+
+    def _select_previous_item(self):
+        cursor = self.treeview.get_cursor()[0]
+        if cursor is not None:
+            index = cursor.get_indices()[0]
+            if index > 0:
+                print "up ", index
+                self.treeview.set_cursor(index - 1)
+        return True
+
     def _entry_keypress(self, *args):
         keycode = args[1].get_keycode()[1]
-        print keycode
         # Don't switch focus in case of up/down arrow
         if keycode == KEYCODE_ARROW_DOWN:
-            cursor = self.treeview.get_cursor()[0]
-            if cursor is not None:
-                index = cursor.get_indices()[0]
-                self.treeview.set_cursor(index + 1)
-            return True
+            self._select_next_item()
         elif keycode == KEYCODE_ARROW_UP:
-            cursor = self.treeview.get_cursor()[0]
-            if cursor is not None:
-                index = cursor.get_indices()[0]
-                self.treeview.set_cursor(index - 1)
-            return True
+            self._select_previous_item()
+        elif keycode == KEYCODE_CTRL:
+            self._is_ctrl_pressed = True
+        elif keycode == KEYCODE_J and self._is_ctrl_pressed:
+            self._select_next_item()
+        elif keycode == KEYCODE_K and self._is_ctrl_pressed:
+            self._select_previous_item()
+        elif keycode == KEYCODE_W and self._is_ctrl_pressed:
+            exit(0)
 
     def _treeview_keypress(self, *args):
         keycode = args[1].get_keycode()[1]
-        print keycode
         if keycode not in (KEYCODE_ARROW_UP, KEYCODE_ARROW_DOWN):
             self.entry.grab_focus()
             return False
