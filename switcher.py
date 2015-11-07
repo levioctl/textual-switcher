@@ -5,11 +5,12 @@ from gi.repository import Gtk, GdkX11, GObject
 
 
 KEYCODE_ENTER = 36
-KEYCODE_CTRL = 36
+KEYCODE_CTRL = 37
 KEYCODE_ARROW_DOWN = 116
 KEYCODE_ARROW_UP = 111
 KEYCODE_J = 44
 KEYCODE_K = 45
+KEYCODE_L = 46
 KEYCODE_W = 25
 
 
@@ -53,7 +54,7 @@ class EntryWindow(Gtk.Window):
         scrollable_treelist.add(self.treeview)
         vbox.pack_start(scrollable_treelist, True, True, 0)
         self._select_first()
-        self._is_ctrl_pressed = True
+        self._is_ctrl_pressed = False
 
     def _entry_set_focus(self, *args):
         print "focus"
@@ -88,6 +89,9 @@ class EntryWindow(Gtk.Window):
         keycode = args[1].get_keycode()[1]
         if keycode == KEYCODE_CTRL:
             self._is_ctrl_pressed = False
+        elif self._is_ctrl_pressed:
+            if keycode == KEYCODE_W:
+                    sys.exit(0)
 
     def _select_next_item(self):
         cursor = self.treeview.get_cursor()[0]
@@ -95,7 +99,6 @@ class EntryWindow(Gtk.Window):
             nr_rows = len(self.task_filter)
             index = cursor.get_indices()[0]
             if index < nr_rows - 1:
-                print "down ", index
                 self.treeview.set_cursor(index + 1)
         return True
 
@@ -104,7 +107,6 @@ class EntryWindow(Gtk.Window):
         if cursor is not None:
             index = cursor.get_indices()[0]
             if index > 0:
-                print "up ", index
                 self.treeview.set_cursor(index - 1)
         return True
 
@@ -117,12 +119,15 @@ class EntryWindow(Gtk.Window):
             self._select_previous_item()
         elif keycode == KEYCODE_CTRL:
             self._is_ctrl_pressed = True
-        elif keycode == KEYCODE_J and self._is_ctrl_pressed:
-            self._select_next_item()
-        elif keycode == KEYCODE_K and self._is_ctrl_pressed:
-            self._select_previous_item()
-        elif keycode == KEYCODE_W and self._is_ctrl_pressed:
-            exit(0)
+        elif self._is_ctrl_pressed:
+            if keycode == KEYCODE_J:
+                self._select_next_item()
+            elif keycode == KEYCODE_K:
+                self._select_previous_item()
+            elif keycode == KEYCODE_W:
+                exit(0)
+            elif keycode == KEYCODE_L:
+                self._update_task_liststore()
 
     def _treeview_keypress(self, *args):
         keycode = args[1].get_keycode()[1]
