@@ -47,6 +47,7 @@ class EntryWindow(Gtk.Window):
         self.task_filter.set_visible_func(self.task_filter_func)
 
         self.treeview = Gtk.TreeView.new_with_model(self.task_filter)
+        self.treeview.set_headers_visible(False)
         self.treeview.connect("row-activated", self._window_selected)
         self.treeview.connect("key-press-event", self._treeview_keypress)
         columns = {self._COL_NR_ICON: "Icon",
