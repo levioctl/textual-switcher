@@ -12,7 +12,12 @@ else
 	exit 1;
 fi
 
-${PKG_MGR_CMD} x11-utils
+if [[ $PKG_MGR_CMD==*yum** ]]; then
+	${PKG_MGR_CMD} xorg-x11-utils
+	${PKG_MGR_CMD} dconf
+else
+	${PKG_MGR_CMD} x11-utils
+	${PKG_MGR_CMD} dconf-cli
+fi
 ${PKG_MGR_CMD} wmctrl
-${PKG_MGR_CMD} dconf-cli
 
