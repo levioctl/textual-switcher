@@ -1,7 +1,8 @@
 import sys
 import socket
 import subprocess
-from gi.repository import Gtk, GdkX11, GObject
+from gi.repository.GdkPixbuf import Pixbuf, InterpType
+from gi.repository import Gtk, GdkX11, GObject, Wnck
 
 
 KEYCODE_ENTER = 36
@@ -17,6 +18,7 @@ KEYCODE_C = 54
 
 class EntryWindow(Gtk.Window):
     WINDOW_TITLE = "Textual Switcher"
+    _COL_NR_ICON, _COL_NR_WINDOW_TITLE, _COL_NR_WINDOW_ID = range(3)
 
     def __init__(self):
         Gtk.Window.__init__(self, title=self.WINDOW_TITLE)
@@ -36,7 +38,9 @@ class EntryWindow(Gtk.Window):
         self.entry.connect("activate", self._entry_activated)
         vbox.pack_start(self.entry, expand=False, fill=True, padding=0)
 
-        self.task_liststore = Gtk.ListStore(str, str)
+        self.task_liststore = Gtk.ListStore(Pixbuf, str, str)
+
+
         self._update_task_liststore(is_first_time=True)
 
         self.task_filter = self.task_liststore.filter_new()
@@ -45,9 +49,14 @@ class EntryWindow(Gtk.Window):
         self.treeview = Gtk.TreeView.new_with_model(self.task_filter)
         self.treeview.connect("row-activated", self._window_selected)
         self.treeview.connect("key-press-event", self._treeview_keypress)
-        for i, column_title in enumerate(["Task name"]):
+        columns = {self._COL_NR_ICON: "Icon",
+                   self._COL_NR_WINDOW_TITLE: "Title"}
+        for i, column_title in columns.iteritems():
             renderer = Gtk.CellRendererText()
             column = Gtk.TreeViewColumn(column_title, renderer, text=i)
+            if i == self._COL_NR_ICON:
+                renderer = Gtk.CellRendererPixbuf()
+                column = Gtk.TreeViewColumn(column_title, renderer, pixbuf=i)
             self.treeview.append_column(column)
 
         scrollable_treelist = Gtk.ScrolledWindow()
@@ -67,6 +76,12 @@ class EntryWindow(Gtk.Window):
         label.set_justify(Gtk.Justification.LEFT)
         vbox.pack_start(label, False, True, 0)
 
+    def _get_icons(self):
+        screen = Wnck.Screen.get_default()
+        screen.force_update()
+        icons = {w.get_xid(): w.get_icon() for w in screen.get_windows()}
+        return icons
+
     def _update_xid(self):
         if self._xid is None:
             try:
@@ -79,6 +94,7 @@ class EntryWindow(Gtk.Window):
         self.task_liststore.clear()
         self._update_xid()
         task_list = self._get_windows_list()
+        icons = self._get_icons()
         for window_id, window_title in task_list:
             print self._xid, window_id, window_title
             # Enforce only one instance
@@ -87,8 +103,12 @@ class EntryWindow(Gtk.Window):
                 self._focus_on_window(window_id)
                 sys.exit(0)
             window_id_nr = int(window_id, 16)
-            if self._xid != window_id_nr:
-                self.task_liststore.append([window_title, window_id])
+            if self._xid == window_id_nr:
+                continue
+            icon = icons.get(window_id_nr, None)
+            pixbuf = Gtk.IconTheme.get_default().load_icon("computer", 16, 0)
+            icon = icon.scale_simple(16, 16, InterpType.BILINEAR)
+            self.task_liststore.append([icon, window_title, window_id])
 
     def _entry_activated(self, *args):
         self._window_selected()
@@ -162,8 +182,8 @@ class EntryWindow(Gtk.Window):
             except ValueError:
                 # Nothing to select
                 return
-        window_id = _filter.get_value(_iter, 1)
-        window_title = _filter.get_value(_iter, 0)
+        window_id = _filter.get_value(_iter, self._COL_NR_WINDOW_ID)
+        window_title = _filter.get_value(_iter, self._COL_NR_WINDOW_TITLE)
         # move the selected window to the current workspace
         #subprocess.check_call(["xdotool", "windowmove", "--sync", window_id, "100", "100"])
         # raise it (the command below alone should do the job, but sometimes fails
@@ -207,7 +227,7 @@ class EntryWindow(Gtk.Window):
         return title
 
     def task_filter_func(self, model, iter, data):
-        proc_title = model[iter][0]
+        proc_title = model[iter][self._COL_NR_WINDOW_TITLE]
         normalized_proc_title = self._normalize(proc_title)
         if normalized_proc_title in self._normalized_search_key or \
             self._normalized_search_key in normalized_proc_title:
