@@ -5,6 +5,7 @@ from gi.repository.GdkPixbuf import Pixbuf, InterpType
 from gi.repository import Gtk, GdkX11, GObject, Wnck
 
 
+KEYCODE_ESCAPE = 9
 KEYCODE_ENTER = 36
 KEYCODE_CTRL = 37
 KEYCODE_ARROW_DOWN = 116
@@ -148,6 +149,8 @@ class EntryWindow(Gtk.Window):
             self._select_previous_item()
         elif keycode == KEYCODE_CTRL:
             self._is_ctrl_pressed = True
+        elif keycode == KEYCODE_ESCAPE:
+            sys.exit(0)
         elif self._is_ctrl_pressed:
             if keycode == KEYCODE_J:
                 self._select_next_item()
