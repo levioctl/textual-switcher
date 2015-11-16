@@ -101,7 +101,6 @@ class EntryWindow(Gtk.Window):
             windows = initial_windows
         icons = self._get_icons()
         for window_id, window_title in windows:
-            print self._xid, window_id, window_title
             window_id_nr = int(window_id, 16)
             if self._xid == window_id_nr:
                 continue
@@ -191,7 +190,6 @@ class EntryWindow(Gtk.Window):
         #subprocess.check_call(["xdotool", "windowmove", "--sync", window_id, "100", "100"])
         # raise it (the command below alone should do the job, but sometimes fails
         # on firefox windows without first moving the window).
-        print window_id, window_title
         try:
             self.focus_on_window(window_id)
         except subprocess.CalledProcessError:
@@ -202,14 +200,12 @@ class EntryWindow(Gtk.Window):
     @classmethod
     def focus_on_window(cls, window_id):
         cmd = ["wmctrl", "-iR", window_id]
-        print cmd
         subprocess.check_call(cmd)
         sys.exit(0)
 
     @classmethod
     def get_windows(cls):
         wlistOutput = subprocess.check_output(["wmctrl", "-l"])
-        print wlistOutput
         wlist = [l.split(socket.gethostname()) for l in wlistOutput.splitlines()]
         wlist = [[wlist[i][0].split()[0], wlist[i][-1].strip()] for i, l in enumerate(wlist)]
         wlist = [w for w in wlist if cls._check_window(w[0]) == True]
