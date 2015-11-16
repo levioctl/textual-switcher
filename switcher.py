@@ -1,8 +1,11 @@
+import os
+import re
 import sys
+import signal
 import socket
 import subprocess
 from gi.repository.GdkPixbuf import Pixbuf, InterpType
-from gi.repository import Gtk, GdkX11, GObject, Wnck
+from gi.repository import Gtk, GdkX11, GObject, Wnck, GLib
 
 
 KEYCODE_ESCAPE = 9
@@ -39,7 +42,7 @@ class EntryWindow(Gtk.Window):
         self.entry.connect("activate", self._entry_activated)
         vbox.pack_start(self.entry, expand=False, fill=True, padding=0)
 
-        self.task_liststore = Gtk.ListStore(Pixbuf, str, str)
+        self.task_liststore = Gtk.ListStore(Pixbuf, str, int)
 
 
         self._update_task_liststore(initial_windows=initial_windows)
@@ -77,6 +80,12 @@ class EntryWindow(Gtk.Window):
                        "Ctrl+C: Exit")
         label.set_justify(Gtk.Justification.LEFT)
         vbox.pack_start(label, False, True, 0)
+        self.register_sighup(self._focus_on_me)
+
+    def _focus_on_me(self):
+        self._update_task_liststore()
+        self._update_xid()
+        self._focus_on_window(self._xid)
 
     def _get_icons(self):
         screen = Wnck.Screen.get_default()
@@ -88,6 +97,7 @@ class EntryWindow(Gtk.Window):
         if self._xid is None:
             try:
                 self._xid = self.get_window().get_xid()
+                self._xid = int(self._xid, 16)
             except:
                 # No XID yet
                 pass
@@ -107,7 +117,7 @@ class EntryWindow(Gtk.Window):
             icon = icons.get(window_id_nr, None)
             pixbuf = Gtk.IconTheme.get_default().load_icon("computer", 16, 0)
             icon = icon.scale_simple(16, 16, InterpType.BILINEAR)
-            self.task_liststore.append([icon, window_title, window_id])
+            self.task_liststore.append([icon, window_title, window_id_nr])
 
     def _entry_activated(self, *args):
         self._window_selected()
@@ -191,17 +201,17 @@ class EntryWindow(Gtk.Window):
         # raise it (the command below alone should do the job, but sometimes fails
         # on firefox windows without first moving the window).
         try:
-            self.focus_on_window(window_id)
+            self._focus_on_window(window_id)
         except subprocess.CalledProcessError:
             # Actual tasks list has changed since last reload
             self._update_task_liststore()
             self._select_first()
 
-    @classmethod
-    def focus_on_window(cls, window_id):
+    @staticmethod
+    def _focus_on_window(window_id):
+        window_id = hex(window_id)
         cmd = ["wmctrl", "-iR", window_id]
         subprocess.check_call(cmd)
-        sys.exit(0)
 
     @classmethod
     def get_windows(cls):
@@ -234,10 +244,43 @@ class EntryWindow(Gtk.Window):
             return True
         return False
 
+    def register_sighup(self, callback):
+        def register_signal():
+            GLib.idle_add(install_glib_handler, signal.SIGHUP, priority=GLib.PRIORITY_HIGH)
+
+        def handler(*args):
+            signal_nr = args[0]
+            if signal_nr == signal.SIGHUP:
+                callback()
+                register_signal()
+
+        def install_glib_handler(sig):
+            unix_signal_add = None
+
+            if hasattr(GLib, "unix_signal_add"):
+                unix_signal_add = GLib.unix_signal_add
+            elif hasattr(GLib, "unix_signal_add_full"):
+                unix_signal_add = GLib.unix_signal_add_full
+
+            if unix_signal_add:
+                print("Register GLib signal handler: %r" % sig)
+                unix_signal_add(GLib.PRIORITY_HIGH, sig, handler, sig)
+            else:
+                print("Can't install GLib signal handler, too old gi.")
+        register_signal()
+
 def validate_only_one_instance(windows):
-    for window_id, window_title in windows:
-        if window_title == EntryWindow.WINDOW_TITLE:
-            EntryWindow.focus_on_window(window_id)
+    cmdline = "switcher.py"
+    processes = subprocess.check_output(["ps", "aux"])
+    matching = re.findall(".+\d.+python .*{}".format(__file__), processes)
+    if matching:
+        my_pid = os.getpid()
+        for process in matching:
+            parts = [item for item in process.split(" ") if item]
+            pid = int(parts[1])
+            if pid != my_pid:
+                os.kill(pid, signal.SIGHUP)
+                sys.exit(0)
 
 windows = EntryWindow.get_windows()
 validate_only_one_instance(windows)
