@@ -172,7 +172,8 @@ class EntryWindow(Gtk.Window):
             self.entry.grab_focus()
             return False
 
-    def _check_window(self, w_id):
+    @classmethod
+    def _check_window(cls, w_id):
         w_type = subprocess.check_output(["xprop", "-id", w_id])
         if " _NET_WM_WINDOW_TYPE_NORMAL" in w_type:
             return True
@@ -209,12 +210,13 @@ class EntryWindow(Gtk.Window):
         print cmd
         subprocess.check_call(cmd)
 
-    def _get_windows_list(self):
+    @classmethod
+    def _get_windows_list(cls):
         wlistOutput = subprocess.check_output(["wmctrl", "-l"])
         print wlistOutput
         wlist = [l.split(socket.gethostname()) for l in wlistOutput.splitlines()]
         wlist = [[wlist[i][0].split()[0], wlist[i][-1].strip()] for i, l in enumerate(wlist)]
-        wlist = [w for w in wlist if self._check_window(w[0]) == True]
+        wlist = [w for w in wlist if cls._check_window(w[0]) == True]
         return wlist
 
     def _text_changed(self, entry):
