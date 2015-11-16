@@ -73,8 +73,8 @@ class EntryWindow(Gtk.Window):
                        "Ctrl+J: Move the selection down by one\n"
                        "Ctrl+K: Move the selection up by one\n"
                        "Ctrl+L: Reload the windows list\n"
-                       "Ctrl+C: Empty text filter\n"
-                       "Ctrl+W: Exit")
+                       "Ctrl+W: Empty search filter\n"
+                       "Ctrl+C: Exit")
         label.set_justify(Gtk.Justification.LEFT)
         vbox.pack_start(label, False, True, 0)
 
@@ -117,7 +117,7 @@ class EntryWindow(Gtk.Window):
         if keycode == KEYCODE_CTRL:
             self._is_ctrl_pressed = False
         elif self._is_ctrl_pressed:
-            if keycode == KEYCODE_W:
+            if keycode == KEYCODE_C:
                     sys.exit(0)
 
     def _select_next_item(self):
@@ -153,12 +153,12 @@ class EntryWindow(Gtk.Window):
                 self._select_next_item()
             elif keycode == KEYCODE_K:
                 self._select_previous_item()
-            elif keycode == KEYCODE_W:
+            elif keycode == KEYCODE_C:
                 sys.exit(0)
             elif keycode == KEYCODE_L:
                 self._update_task_liststore()
                 self._select_first()
-            elif keycode == KEYCODE_C:
+            elif keycode == KEYCODE_W:
                 self.entry.set_text("")
 
     def _treeview_keypress(self, *args):
