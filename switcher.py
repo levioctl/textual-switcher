@@ -102,8 +102,10 @@ class EntryWindow(Gtk.Window):
             # Enforce only one instance
             if is_first_time and window_title == self.WINDOW_TITLE:
                 print "Found another instance, exiting."
-                self._focus_on_window(window_id)
-                sys.exit(0)
+                try:
+                    self._focus_on_window(window_id)
+                finally:
+                    sys.exit(0)
             window_id_nr = int(window_id, 16)
             if self._xid == window_id_nr:
                 continue
@@ -193,19 +195,19 @@ class EntryWindow(Gtk.Window):
         # raise it (the command below alone should do the job, but sometimes fails
         # on firefox windows without first moving the window).
         print window_id, window_title
-        self._focus_on_window(window_id)
-
-    def _focus_on_window(self, window_id):
-        cmd = ["wmctrl", "-iR", window_id]
         try:
-            print cmd
-            subprocess.check_call(cmd)
-            sys.exit(0)
+            self._focus_on_window(window_id)
         except subprocess.CalledProcessError:
             # Actual tasks list has changed since last reload
             self._update_task_liststore()
             self._select_first()
             return
+        sys.exit(0)
+
+    def _focus_on_window(self, window_id):
+        cmd = ["wmctrl", "-iR", window_id]
+        print cmd
+        subprocess.check_call(cmd)
 
     def _get_windows_list(self):
         wlistOutput = subprocess.check_output(["wmctrl", "-l"])
