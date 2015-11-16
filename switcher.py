@@ -96,7 +96,7 @@ class EntryWindow(Gtk.Window):
         self.task_liststore.clear()
         self._update_xid()
         if initial_windows is None:
-            windows = self.get_windows_list()
+            windows = self.get_windows()
         else:
             windows = initial_windows
         icons = self._get_icons()
