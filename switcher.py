@@ -88,6 +88,7 @@ class EntryWindow(Gtk.Window):
         self._update_xid()
         self._focus_on_window(self._xid)
         self.entry.set_text("")
+        self._select_first()
 
     def _get_icons(self):
         screen = Wnck.Screen.get_default()
