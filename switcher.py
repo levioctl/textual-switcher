@@ -3,6 +3,7 @@ import re
 import sys
 import signal
 import socket
+import threading
 import subprocess
 from gi.repository.GdkPixbuf import Pixbuf, InterpType
 from gi.repository import Gtk, GdkX11, GObject, Wnck, GLib
@@ -46,7 +47,7 @@ class EntryWindow(Gtk.Window):
         self.task_liststore = Gtk.ListStore(Pixbuf, str, int)
 
 
-        self._update_task_liststore()
+        self._async_update_task_liststore()
 
         self.task_filter = self.task_liststore.filter_new()
         self.task_filter.set_visible_func(self.task_filter_func)
@@ -84,11 +85,8 @@ class EntryWindow(Gtk.Window):
         self.register_sighup(self._focus_on_me)
 
     def _focus_on_me(self):
-        self._update_task_liststore()
-        self._update_xid()
         self._focus_on_window(self._xid)
-        self.entry.set_text("")
-        self._select_first()
+        self._async_update_task_liststore()
 
     def _get_icons(self):
         screen = Wnck.Screen.get_default()
@@ -105,10 +103,11 @@ class EntryWindow(Gtk.Window):
                 # No XID yet
                 pass
 
-    def _update_task_liststore(self):
-        self.task_liststore.clear()
+    def _update_task_liststore_callback(self, windows):
+        if not windows:
+            return
         self._update_xid()
-        windows = self._get_windows()
+        self.task_liststore.clear()
         icons = self._get_icons()
         for window_id, window_title in windows:
             window_id_nr = int(window_id, 16)
@@ -118,6 +117,26 @@ class EntryWindow(Gtk.Window):
             pixbuf = Gtk.IconTheme.get_default().load_icon("computer", 16, 0)
             icon = icon.scale_simple(16, 16, InterpType.BILINEAR)
             self.task_liststore.append([icon, window_title, window_id_nr])
+        self._select_first()
+
+    def _async_update_task_liststore(self):
+        params = ["wmctrl", "-l"]
+        pid, stdin, stdout, _ = GLib.spawn_async(params,
+            flags=GLib.SpawnFlags.SEARCH_PATH|GLib.SpawnFlags.DO_NOT_REAP_CHILD,                                       
+            standard_output=True,
+            standard_error=True)
+        io = GLib.IOChannel(stdout)
+
+        def write_to_textview(*args, **kwargs):
+            wlist_output = io.read()
+            wlist = [l.split(socket.gethostname()) for l in wlist_output.splitlines()]
+            wlist = [[wlist[i][0].split()[0], wlist[i][-1].strip()] for i, l in enumerate(wlist)]
+            wlist = [w for w in wlist if self._check_window(w[0])]
+            self._update_task_liststore_callback(wlist)
+
+        self.source_id_out = io.add_watch(GLib.IO_IN|GLib.IO_HUP,
+                                          write_to_textview,
+                                          priority=GLib.PRIORITY_HIGH)
 
     def _entry_activated(self, *args):
         self._window_selected()
@@ -166,7 +185,7 @@ class EntryWindow(Gtk.Window):
             elif keycode == KEYCODE_C:
                 sys.exit(0)
             elif keycode == KEYCODE_L:
-                self._update_task_liststore()
+                self._async_update_task_liststore()
                 self._select_first()
             elif keycode == KEYCODE_W:
                 self.entry.set_text("")
@@ -204,7 +223,7 @@ class EntryWindow(Gtk.Window):
             self._focus_on_window(window_id)
         except subprocess.CalledProcessError:
             # Actual tasks list has changed since last reload
-            self._update_task_liststore()
+            self._async_update_task_liststore()
             self._select_first()
 
     @staticmethod
@@ -212,14 +231,6 @@ class EntryWindow(Gtk.Window):
         window_id = hex(window_id)
         cmd = ["wmctrl", "-iR", window_id]
         subprocess.check_call(cmd)
-
-    @classmethod
-    def _get_windows(cls):
-        wlistOutput = subprocess.check_output(["wmctrl", "-l"])
-        wlist = [l.split(socket.gethostname()) for l in wlistOutput.splitlines()]
-        wlist = [[wlist[i][0].split()[0], wlist[i][-1].strip()] for i, l in enumerate(wlist)]
-        wlist = [w for w in wlist if cls._check_window(w[0]) == True]
-        return wlist
 
     def _text_changed(self, entry):
         search_key = entry.get_text()
@@ -293,7 +304,6 @@ def validate_only_one_instance():
     except IOError:
         write_pid_file()
         return 
-
 
 
 validate_only_one_instance()
