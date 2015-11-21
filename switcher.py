@@ -25,7 +25,7 @@ class EntryWindow(Gtk.Window):
     WINDOW_TITLE = "Textual Switcher"
     _COL_NR_ICON, _COL_NR_WINDOW_TITLE, _COL_NR_WINDOW_ID = range(3)
 
-    def __init__(self, initial_windows=None):
+    def __init__(self):
         Gtk.Window.__init__(self, title=self.WINDOW_TITLE)
         self.set_size_request(300, 300)
 
@@ -46,7 +46,7 @@ class EntryWindow(Gtk.Window):
         self.task_liststore = Gtk.ListStore(Pixbuf, str, int)
 
 
-        self._update_task_liststore(initial_windows=initial_windows)
+        self._update_task_liststore()
 
         self.task_filter = self.task_liststore.filter_new()
         self.task_filter.set_visible_func(self.task_filter_func)
@@ -104,13 +104,10 @@ class EntryWindow(Gtk.Window):
                 # No XID yet
                 pass
 
-    def _update_task_liststore(self, initial_windows=None):
+    def _update_task_liststore(self):
         self.task_liststore.clear()
         self._update_xid()
-        if initial_windows is None:
-            windows = self.get_windows()
-        else:
-            windows = initial_windows
+        windows = self._get_windows()
         icons = self._get_icons()
         for window_id, window_title in windows:
             window_id_nr = int(window_id, 16)
@@ -216,7 +213,7 @@ class EntryWindow(Gtk.Window):
         subprocess.check_call(cmd)
 
     @classmethod
-    def get_windows(cls):
+    def _get_windows(cls):
         wlistOutput = subprocess.check_output(["wmctrl", "-l"])
         wlist = [l.split(socket.gethostname()) for l in wlistOutput.splitlines()]
         wlist = [[wlist[i][0].split()[0], wlist[i][-1].strip()] for i, l in enumerate(wlist)]
@@ -274,7 +271,7 @@ class EntryWindow(Gtk.Window):
 def write_pid_file():
     file(PID_FILE, "wb").write("%d" % os.getpid())
 
-def validate_only_one_instance(windows):
+def validate_only_one_instance():
     try:
         pid_file = file(PID_FILE, "rb").read()
     except IOError as e:
@@ -298,9 +295,8 @@ def validate_only_one_instance(windows):
 
 
 
-windows = EntryWindow.get_windows()
-validate_only_one_instance(windows)
-win = EntryWindow(initial_windows=windows)
+validate_only_one_instance()
+win = EntryWindow()
 win.connect("delete-event", Gtk.main_quit)
 win.show_all()
 win.realize()
