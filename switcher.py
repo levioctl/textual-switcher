@@ -7,6 +7,7 @@ import subprocess
 from gi.repository.GdkPixbuf import Pixbuf, InterpType
 from gi.repository import Gtk, GdkX11, GObject, Wnck, GLib
 
+PID_FILE = "/run/lock/textual_switcher.pid"
 
 KEYCODE_ESCAPE = 9
 KEYCODE_ENTER = 36
@@ -86,6 +87,7 @@ class EntryWindow(Gtk.Window):
         self._update_task_liststore()
         self._update_xid()
         self._focus_on_window(self._xid)
+        self.entry.set_text("")
 
     def _get_icons(self):
         screen = Wnck.Screen.get_default()
@@ -269,18 +271,32 @@ class EntryWindow(Gtk.Window):
                 print("Can't install GLib signal handler, too old gi.")
         register_signal()
 
+def write_pid_file():
+    file(PID_FILE, "wb").write("%d" % os.getpid())
+
 def validate_only_one_instance(windows):
-    cmdline = "switcher.py"
-    processes = subprocess.check_output(["ps", "aux"])
-    matching = re.findall(".+\d.+python .*{}".format(__file__), processes)
-    if matching:
-        my_pid = os.getpid()
-        for process in matching:
-            parts = [item for item in process.split(" ") if item]
-            pid = int(parts[1])
-            if pid != my_pid:
-                os.kill(pid, signal.SIGHUP)
-                sys.exit(0)
+    try:
+        pid_file = file(PID_FILE, "rb").read()
+    except IOError as e:
+        # TODO: Check that it is really file not found
+        write_pid_file()
+        return
+    if pid_file == os.getpid():
+        return
+    try:
+        pid = int(pid_file)
+    except ValueError:
+        raise Exception("Invalid pid file")
+    try:
+        cmdline = file("/proc/%d/cmdline" % pid, "rb").read()
+        if 'switcher.py' in cmdline:
+            os.kill(pid, signal.SIGHUP)
+            sys.exit(0)
+    except IOError:
+        write_pid_file()
+        return 
+
+
 
 windows = EntryWindow.get_windows()
 validate_only_one_instance(windows)
