@@ -229,7 +229,7 @@ class EntryWindow(Gtk.Window):
         except subprocess.CalledProcessError:
             # Actual tasks list has changed since last reload
             self._async_update_task_liststore()
-            self._select_first()
+        self._select_first()
 
     @staticmethod
     def focus_on_window(window_id):
