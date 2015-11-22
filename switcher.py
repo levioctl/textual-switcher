@@ -8,7 +8,6 @@ import subprocess
 from gi.repository.GdkPixbuf import Pixbuf, InterpType
 from gi.repository import Gtk, GdkX11, GObject, Wnck, GLib
 
-XID_FILE = "/run/lock/textual_switcher.xid"
 
 KEYCODE_ESCAPE = 9
 KEYCODE_ENTER = 36
@@ -26,7 +25,7 @@ class EntryWindow(Gtk.Window):
     WINDOW_TITLE = "Textual Switcher"
     _COL_NR_ICON, _COL_NR_WINDOW_TITLE, _COL_NR_WINDOW_ID = range(3)
 
-    def __init__(self):
+    def __init__(self, lockfile_path):
         Gtk.Window.__init__(self, title=self.WINDOW_TITLE)
         self.set_size_request(300, 300)
 
@@ -82,6 +81,7 @@ class EntryWindow(Gtk.Window):
                        "Ctrl+C: Exit")
         label.set_justify(Gtk.Justification.LEFT)
         vbox.pack_start(label, False, True, 0)
+        self._lockfile_path = lockfile_path
 
     def on_focus(self, *args):
         if self.is_active():
@@ -261,28 +261,12 @@ class EntryWindow(Gtk.Window):
         return False
 
     def _write_xid_file(self):
-        with open(XID_FILE, "wb") as f:
-            f.write(str(self._xid))
-
-def validate_only_one_instance():
-    try:
-        xid = open(XID_FILE, "rb").read()
-    except IOError as e:
-        # TODO: Check that it is really file not found
-        return
-    try:
-        xid = int(xid)
-    except ValueError:
-        raise Exception("Invalid xid file")
-    try:
-        EntryWindow.focus_on_window(xid)
-        sys.exit(0)
-    except subprocess.CalledProcessError:
-        pass
+        with open(self._lockfile_path, "wb") as f:
+            f.write(hex(self._xid).replace("L", ""))
 
 
-validate_only_one_instance()
-win = EntryWindow()
+lockfile_path = sys.argv[1]
+win = EntryWindow(lockfile_path)
 win.connect("delete-event", Gtk.main_quit)
 win.connect('notify::is-active', win.on_focus)
 win.show_all()
