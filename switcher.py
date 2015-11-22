@@ -87,6 +87,7 @@ class EntryWindow(Gtk.Window):
     def _focus_on_me(self):
         self._focus_on_window(self._xid)
         self._async_update_task_liststore()
+        self.entry.set_text("")
 
     def _get_icons(self):
         screen = Wnck.Screen.get_default()
