@@ -8,7 +8,7 @@ import subprocess
 from gi.repository.GdkPixbuf import Pixbuf, InterpType
 from gi.repository import Gtk, GdkX11, GObject, Wnck, GLib
 
-PID_FILE = "/run/lock/textual_switcher.pid"
+XID_FILE = "/run/lock/textual_switcher.xid"
 
 KEYCODE_ESCAPE = 9
 KEYCODE_ENTER = 36
@@ -82,12 +82,11 @@ class EntryWindow(Gtk.Window):
                        "Ctrl+C: Exit")
         label.set_justify(Gtk.Justification.LEFT)
         vbox.pack_start(label, False, True, 0)
-        self.register_sighup(self._focus_on_me)
 
-    def _focus_on_me(self):
-        self._focus_on_window(self._xid)
-        self._async_update_task_liststore()
-        self.entry.set_text("")
+    def on_focus(self, *args):
+        if self.is_active():
+            self._async_update_task_liststore()
+            self.entry.set_text("")
 
     def _get_icons(self):
         screen = Wnck.Screen.get_default()
@@ -99,7 +98,10 @@ class EntryWindow(Gtk.Window):
         if self._xid is None:
             try:
                 self._xid = self.get_window().get_xid()
-                self._xid = int(self._xid, 16)
+                self._write_xid_file()
+            except IOError:
+                print "Cannot write XID file"
+                sys.exit(0)
             except:
                 # No XID yet
                 pass
@@ -115,6 +117,8 @@ class EntryWindow(Gtk.Window):
             if self._xid == window_id_nr:
                 continue
             icon = icons.get(window_id_nr, None)
+            if icon is None:
+                continue
             pixbuf = Gtk.IconTheme.get_default().load_icon("computer", 16, 0)
             icon = icon.scale_simple(16, 16, InterpType.BILINEAR)
             self.task_liststore.append([icon, window_title, window_id_nr])
@@ -221,14 +225,14 @@ class EntryWindow(Gtk.Window):
         # raise it (the command below alone should do the job, but sometimes fails
         # on firefox windows without first moving the window).
         try:
-            self._focus_on_window(window_id)
+            self.focus_on_window(window_id)
         except subprocess.CalledProcessError:
             # Actual tasks list has changed since last reload
             self._async_update_task_liststore()
             self._select_first()
 
     @staticmethod
-    def _focus_on_window(window_id):
+    def focus_on_window(window_id):
         window_id = hex(window_id)
         cmd = ["wmctrl", "-iR", window_id]
         subprocess.check_call(cmd)
@@ -256,60 +260,31 @@ class EntryWindow(Gtk.Window):
             return True
         return False
 
-    def register_sighup(self, callback):
-        def register_signal():
-            GLib.idle_add(install_glib_handler, signal.SIGHUP, priority=GLib.PRIORITY_HIGH)
-
-        def handler(*args):
-            signal_nr = args[0]
-            if signal_nr == signal.SIGHUP:
-                callback()
-                register_signal()
-
-        def install_glib_handler(sig):
-            unix_signal_add = None
-
-            if hasattr(GLib, "unix_signal_add"):
-                unix_signal_add = GLib.unix_signal_add
-            elif hasattr(GLib, "unix_signal_add_full"):
-                unix_signal_add = GLib.unix_signal_add_full
-
-            if unix_signal_add:
-                print("Register GLib signal handler: %r" % sig)
-                unix_signal_add(GLib.PRIORITY_HIGH, sig, handler, sig)
-            else:
-                print("Can't install GLib signal handler, too old gi.")
-        register_signal()
-
-def write_pid_file():
-    file(PID_FILE, "wb").write("%d" % os.getpid())
+    def _write_xid_file(self):
+        with open(XID_FILE, "wb") as f:
+            f.write(str(self._xid))
 
 def validate_only_one_instance():
     try:
-        pid_file = file(PID_FILE, "rb").read()
+        xid = open(XID_FILE, "rb").read()
     except IOError as e:
         # TODO: Check that it is really file not found
-        write_pid_file()
-        return
-    if pid_file == os.getpid():
         return
     try:
-        pid = int(pid_file)
+        xid = int(xid)
     except ValueError:
-        raise Exception("Invalid pid file")
+        raise Exception("Invalid xid file")
     try:
-        cmdline = file("/proc/%d/cmdline" % pid, "rb").read()
-        if 'switcher.py' in cmdline:
-            os.kill(pid, signal.SIGHUP)
-            sys.exit(0)
-    except IOError:
-        write_pid_file()
-        return 
+        EntryWindow.focus_on_window(xid)
+        sys.exit(0)
+    except subprocess.CalledProcessError:
+        pass
 
 
 validate_only_one_instance()
 win = EntryWindow()
 win.connect("delete-event", Gtk.main_quit)
+win.connect('notify::is-active', win.on_focus)
 win.show_all()
 win.realize()
 Gtk.main()
