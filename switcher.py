@@ -23,7 +23,7 @@ KEYCODE_C = 54
 
 class EntryWindow(Gtk.Window):
     WINDOW_TITLE = "Textual Switcher"
-    _COL_NR_ICON, _COL_NR_WINDOW_TITLE, _COL_NR_WINDOW_ID = range(3)
+    _COL_NR_ICON, _COL_NR_WINDOW_TITLE, _COL_NR_WM_CLASS, _COL_NR_WINDOW_ID = range(4)
 
     def __init__(self, lockfile_path):
         Gtk.Window.__init__(self, title=self.WINDOW_TITLE)
@@ -43,7 +43,7 @@ class EntryWindow(Gtk.Window):
         self.entry.connect("activate", self._entry_activated)
         vbox.pack_start(self.entry, expand=False, fill=True, padding=0)
 
-        self.task_liststore = Gtk.ListStore(Pixbuf, str, int)
+        self.task_liststore = Gtk.ListStore(Pixbuf, str, str, int)
 
 
         self._async_update_task_liststore()
@@ -106,13 +106,21 @@ class EntryWindow(Gtk.Window):
                 # No XID yet
                 pass
 
+    def _combine_title_and_wm_class(self, window_title, wm_class):
+        if wm_class:
+            wm_class = wm_class.split(".")[-1]
+            combined_title = "{} - {}".format(wm_class, window_title)
+        else:
+            combined_title = title
+        return combined_title
+
     def _update_task_liststore_callback(self, windows):
         if not windows:
             return
         self._update_xid()
         self.task_liststore.clear()
         icons = self._get_icons()
-        for window_id, window_title in windows:
+        for window_id, wm_class, window_title in windows:
             window_id_nr = int(window_id, 16)
             if self._xid == window_id_nr:
                 continue
@@ -121,26 +129,45 @@ class EntryWindow(Gtk.Window):
                 continue
             pixbuf = Gtk.IconTheme.get_default().load_icon("computer", 16, 0)
             icon = icon.scale_simple(16, 16, InterpType.BILINEAR)
-            self.task_liststore.append([icon, window_title, window_id_nr])
+            window_title = self._combine_title_and_wm_class(window_title, wm_class)
+            self.task_liststore.append([icon, window_title, wm_class, window_id_nr])
         self._select_first()
 
     def _async_update_task_liststore(self):
-        params = ["wmctrl", "-l"]
+        params = ["wmctrl", "-lx"]
         pid, stdin, stdout, _ = GLib.spawn_async(params,
             flags=GLib.SpawnFlags.SEARCH_PATH|GLib.SpawnFlags.DO_NOT_REAP_CHILD,                                       
             standard_output=True,
             standard_error=True)
         io = GLib.IOChannel(stdout)
 
-        def write_to_textview(*args, **kwargs):
+        def parse_wlist_output(wlist_output):
+            windows = list()
+            for line in wlist_output.splitlines():
+                xid, line = line.split(" ", 1)
+                line = line.lstrip()
+                desktop_id, line = line.split(" ", 1)
+                del desktop_id
+                line = line.lstrip()
+                wm_class, line = line.split(" ", 1)
+                if wm_class == "N/A":
+                    continue
+                line = line.lstrip()
+                hostname, line = line.split(" ", 1)
+                del hostname
+                title = line.lstrip()
+                window = [xid, wm_class, title]
+                windows.append(window)
+            wlist = [w for w in windows if self._check_window(w[0])]
+            return windows
+
+        def wlist_finish_callback(*args, **kwargs):
             wlist_output = io.read()
-            wlist = [l.split(socket.gethostname()) for l in wlist_output.splitlines()]
-            wlist = [[wlist[i][0].split()[0], wlist[i][-1].strip()] for i, l in enumerate(wlist)]
-            wlist = [w for w in wlist if self._check_window(w[0])]
-            self._update_task_liststore_callback(wlist)
+            windows = parse_wlist_output(wlist_output)
+            self._update_task_liststore_callback(windows)
 
         self.source_id_out = io.add_watch(GLib.IO_IN|GLib.IO_HUP,
-                                          write_to_textview,
+                                          wlist_finish_callback,
                                           priority=GLib.PRIORITY_HIGH)
 
     def _entry_activated(self, *args):
@@ -257,6 +284,11 @@ class EntryWindow(Gtk.Window):
         normalized_proc_title = self._normalize(proc_title)
         if normalized_proc_title in self._normalized_search_key or \
             self._normalized_search_key in normalized_proc_title:
+            return True
+        wm_class = model[iter][self._COL_NR_WM_CLASS]
+        normalized_wm_class = self._normalize(wm_class)
+        if wm_class in self._normalized_search_key or \
+            self._normalized_search_key in normalized_wm_class:
             return True
         return False
 
