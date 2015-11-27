@@ -158,7 +158,6 @@ class EntryWindow(Gtk.Window):
                 title = line.lstrip()
                 window = [xid, wm_class, title]
                 windows.append(window)
-            wlist = [w for w in windows if self._check_window(w[0])]
             return windows
 
         def wlist_finish_callback(*args, **kwargs):
@@ -226,14 +225,6 @@ class EntryWindow(Gtk.Window):
         keycode = args[1].get_keycode()[1]
         if keycode not in (KEYCODE_ARROW_UP, KEYCODE_ARROW_DOWN):
             self.entry.grab_focus()
-            return False
-
-    @classmethod
-    def _check_window(cls, w_id):
-        w_type = subprocess.check_output(["xprop", "-id", w_id])
-        if " _NET_WM_WINDOW_TYPE_NORMAL" in w_type:
-            return True
-        else:
             return False
 
     def _window_selected(self, *_):
