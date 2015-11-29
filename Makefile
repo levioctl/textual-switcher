@@ -8,6 +8,8 @@ install:
 	./install-prerequisites.sh
 	sudo mkdir -p ${INSTALL_DIR}
 	sudo cp switcher.py ${INSTALL_DIR}
+	sudo touch ${LOCKFILE_PATH}
+	sudo chmod 777 ${LOCKFILE_PATH}
 	python apply-binding.py ${KEY_BINDING} ${KEY_COMBINATION}
 	@echo "Done. Press " ${KEY_COMBINATION} " to launch the switcher (you might need to restart for the binding to work)."
 
