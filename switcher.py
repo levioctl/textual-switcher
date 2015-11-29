@@ -285,7 +285,8 @@ class EntryWindow(Gtk.Window):
 
     def _write_xid_file(self):
         with open(self._lockfile_path, "wb") as f:
-            f.write(hex(self._xid).replace("L", ""))
+            xidHex = "0x%08x" % (self._xid,)
+            f.write(xidHex)
 
 
 lockfile_path = sys.argv[1]
