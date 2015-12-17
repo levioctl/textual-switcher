@@ -27,7 +27,8 @@ class EntryWindow(Gtk.Window):
 
     def __init__(self, lockfile_path):
         Gtk.Window.__init__(self, title=self.WINDOW_TITLE)
-        self.set_size_request(300, 300)
+        self.set_size_request(450, 500)
+        self.set_position(Gtk.WindowPosition.CENTER)
 
         self._xid = None
         self._normalized_search_key = ""
