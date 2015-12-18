@@ -70,9 +70,8 @@ class EntryWindow(Gtk.Window):
         self._is_ctrl_pressed = False
 
         label = Gtk.Label()
-        label.set_text("Keyboard shortcuts:\n"
-                       "Ctrl+J: Move the selection down by one\n"
-                       "Ctrl+K: Move the selection up by one\n"
+        label.set_text("Ctrl+J: Move one down\n"
+                       "Ctrl+K: Move one up\n"
                        "Ctrl+W/U: Empty search filter\n"
                        "Ctrl+L: Move to First (+reload)\n"
                        "Ctrl+D: Move to last\n"
