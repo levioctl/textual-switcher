@@ -1,12 +1,9 @@
 import os
-import re
 import sys
 import signal
-import socket
-import threading
 import subprocess
 from gi.repository.GdkPixbuf import Pixbuf, InterpType
-from gi.repository import Gtk, GdkX11, GObject, Wnck, GLib
+from gi.repository import Gtk, GdkX11, Wnck, GLib
 
 
 KEYCODE_ESCAPE = 9
@@ -47,8 +44,6 @@ class EntryWindow(Gtk.Window):
         self.task_liststore = Gtk.ListStore(Pixbuf, str, str, int)
 
 
-        self._async_update_task_liststore()
-
         self.task_filter = self.task_liststore.filter_new()
         self.task_filter.set_visible_func(self.task_filter_func)
 
@@ -83,11 +78,15 @@ class EntryWindow(Gtk.Window):
         label.set_justify(Gtk.Justification.LEFT)
         vbox.pack_start(label, False, True, 0)
         self._lockfile_path = lockfile_path
+        self.register_sighup(self._focus_on_me)
+
+    def _focus_on_me(self):
+        self.set_visible(True)
+        self.async_focus_on_window(self._xid)
 
     def on_focus(self, *args):
-        if self.is_active():
-            self._async_update_task_liststore()
-            self.entry.set_text("")
+        self._async_update_task_liststore()
+        self.entry.set_text("")
 
     def _get_icons(self):
         screen = Wnck.Screen.get_default()
@@ -99,20 +98,19 @@ class EntryWindow(Gtk.Window):
         if self._xid is None:
             try:
                 self._xid = self.get_window().get_xid()
-                self._write_xid_file()
+                self._write_pid_file()
             except IOError:
-                print "Cannot write XID file"
                 sys.exit(0)
             except:
                 # No XID yet
-                pass
+                raise
 
     def _combine_title_and_wm_class(self, window_title, wm_class):
-        if wm_class:
+        if wm_class is not None and wm_class:
             wm_class = wm_class.split(".")[-1]
             combined_title = "{} - {}".format(wm_class, window_title)
         else:
-            combined_title = title
+            combined_title = window_title
         return combined_title
 
     def _update_task_liststore_callback(self, windows):
@@ -128,7 +126,6 @@ class EntryWindow(Gtk.Window):
             icon = icons.get(window_id_nr, None)
             if icon is None:
                 continue
-            pixbuf = Gtk.IconTheme.get_default().load_icon("computer", 16, 0)
             icon = icon.scale_simple(16, 16, InterpType.BILINEAR)
             window_title = self._combine_title_and_wm_class(window_title, wm_class)
             self.task_liststore.append([icon, window_title, wm_class, window_id_nr])
@@ -238,13 +235,13 @@ class EntryWindow(Gtk.Window):
                 # Nothing to select
                 return
         window_id = _filter.get_value(_iter, self._COL_NR_WINDOW_ID)
-        window_title = _filter.get_value(_iter, self._COL_NR_WINDOW_TITLE)
         # move the selected window to the current workspace
         #subprocess.check_call(["xdotool", "windowmove", "--sync", window_id, "100", "100"])
         # raise it (the command below alone should do the job, but sometimes fails
         # on firefox windows without first moving the window).
         try:
             self.focus_on_window(window_id)
+            self.set_visible(False)
         except subprocess.CalledProcessError:
             # Actual tasks list has changed since last reload
             self._async_update_task_liststore()
@@ -255,6 +252,17 @@ class EntryWindow(Gtk.Window):
         window_id = hex(window_id)
         cmd = ["wmctrl", "-iR", window_id]
         subprocess.check_call(cmd)
+
+    @staticmethod
+    def async_focus_on_window(window_id):
+        window_id = hex(window_id)
+        params = ["wmctrl", "-iR", window_id]
+        pid, stdin, stdout, _ = \
+            GLib.spawn_async(
+                params,
+                flags=GLib.SpawnFlags.SEARCH_PATH|GLib.SpawnFlags.DO_NOT_REAP_CHILD, 
+                standard_output=True,
+                standard_error=True)
 
     def _text_changed(self, entry):
         search_key = entry.get_text()
@@ -284,10 +292,35 @@ class EntryWindow(Gtk.Window):
             return True
         return False
 
-    def _write_xid_file(self):
+    def _write_pid_file(self):
         with open(self._lockfile_path, "wb") as f:
-            xidHex = "0x%08x" % (self._xid,)
-            f.write(xidHex)
+            pid = str(os.getpid())
+            f.write(pid)
+
+    def register_sighup(self, callback):
+        def register_signal():
+            GLib.idle_add(install_glib_handler, signal.SIGHUP, priority=GLib.PRIORITY_HIGH)
+
+        def handler(*args):
+            signal_nr = args[0]
+            if signal_nr == signal.SIGHUP:
+                callback()
+                register_signal()
+
+        def install_glib_handler(sig):
+            unix_signal_add = None
+
+            if hasattr(GLib, "unix_signal_add"):
+                unix_signal_add = GLib.unix_signal_add
+            elif hasattr(GLib, "unix_signal_add_full"):
+                unix_signal_add = GLib.unix_signal_add_full
+
+            if unix_signal_add:
+                print("Register GLib signal handler: %r" % sig)
+                unix_signal_add(GLib.PRIORITY_HIGH, sig, handler, sig)
+            else:
+                print("Can't install GLib signal handler, too old gi.")
+        register_signal()
 
 
 lockfile_path = sys.argv[1]
