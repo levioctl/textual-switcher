@@ -16,6 +16,7 @@ KEYCODE_K = 45
 KEYCODE_L = 46
 KEYCODE_W = 25
 KEYCODE_C = 54
+KEYCODE_D = 40
 
 
 class EntryWindow(Gtk.Window):
@@ -72,8 +73,9 @@ class EntryWindow(Gtk.Window):
         label.set_text("Keyboard shortcuts:\n"
                        "Ctrl+J: Move the selection down by one\n"
                        "Ctrl+K: Move the selection up by one\n"
-                       "Ctrl+L: Reload the windows list\n"
-                       "Ctrl+W: Empty search filter\n"
+                       "Ctrl+W/U: Empty search filter\n"
+                       "Ctrl+L: Move to First (+reload)\n"
+                       "Ctrl+D: Move to last\n"
                        "Ctrl+C: Exit")
         label.set_justify(Gtk.Justification.LEFT)
         vbox.pack_start(label, False, True, 0)
@@ -178,6 +180,19 @@ class EntryWindow(Gtk.Window):
             if keycode == KEYCODE_C:
                     sys.exit(0)
 
+    def _select_first_item(self):
+        cursor = self.treeview.get_cursor()[0]
+        if cursor is not None:
+            self.treeview.set_cursor(0)
+        return True
+
+    def _select_last_item(self):
+        cursor = self.treeview.get_cursor()[0]
+        if cursor is not None:
+            nr_rows = len(self.task_filter)
+            self.treeview.set_cursor(nr_rows - 1)
+        return True
+
     def _select_next_item(self):
         cursor = self.treeview.get_cursor()[0]
         if cursor is not None:
@@ -207,6 +222,8 @@ class EntryWindow(Gtk.Window):
         elif keycode == KEYCODE_ESCAPE:
             sys.exit(0)
         elif self._is_ctrl_pressed:
+            if keycode == KEYCODE_D:
+                self._select_last_item()
             if keycode == KEYCODE_J:
                 self._select_next_item()
             elif keycode == KEYCODE_K:
