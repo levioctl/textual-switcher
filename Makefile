@@ -1,7 +1,7 @@
 KEY_COMBINATION="<Control><Alt>w"
 INSTALL_DIR="/usr/share/textual-switcher"
 LOCKFILE_PATH="/run/lock/textual_switcher.pid"
-KEY_BINDING="/bin/bash -c \"\ (ls \\'${LOCKFILE_PATH}\\' && kill -HUP \\\`cat ${LOCKFILE_PATH}\\\` ) || /usr/bin/python ${INSTALL_DIR}/switcher.py ${LOCKFILE_PATH}\""
+KEY_BINDING="/bin/bash -c \"\ (ls \\'${LOCKFILE_PATH}\\' && /bin/kill -HUP \\\`cat ${LOCKFILE_PATH}\\\` ) || /usr/bin/python ${INSTALL_DIR}/switcher.py ${LOCKFILE_PATH}\""
 
 .PHONY: install
 install:
