@@ -74,7 +74,7 @@ class EntryWindow(Gtk.Window):
                        "Ctrl+W/U: Empty search filter\n"
                        "Ctrl+L: Move to First (+reload)\n"
                        "Ctrl+D: Move to last\n"
-                       "Ctrl+C: Exit")
+                       "Ctrl+C: Hide")
         label.set_justify(Gtk.Justification.LEFT)
         vbox.pack_start(label, False, True, 0)
         self._lockfile_path = lockfile_path
@@ -220,7 +220,7 @@ class EntryWindow(Gtk.Window):
             elif keycode == KEYCODE_K:
                 self._select_previous_item()
             elif keycode == KEYCODE_C:
-                sys.exit(0)
+                self.set_visible(False)
             elif keycode == KEYCODE_L:
                 self._async_update_task_liststore()
                 self._select_first()
