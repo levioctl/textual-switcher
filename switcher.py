@@ -38,7 +38,6 @@ class EntryWindow(Gtk.Window):
         self.entry.set_text("")
         self.entry.connect("changed", self._text_changed)
         self.entry.connect("key-press-event", self._entry_keypress)
-        self.entry.connect("key-release-event", self._entry_keyrelease)
         self.entry.connect("activate", self._entry_activated)
         vbox.pack_start(self.entry, expand=False, fill=True, padding=0)
 
@@ -80,12 +79,11 @@ class EntryWindow(Gtk.Window):
         vbox.pack_start(label, False, True, 0)
         self._lockfile_path = lockfile_path
         self.register_sighup(self._focus_on_me)
+        self._async_update_task_liststore()
 
     def _focus_on_me(self):
         self.set_visible(True)
         self.async_focus_on_window(self._xid)
-
-    def on_focus(self, *args):
         self._async_update_task_liststore()
         self.entry.set_text("")
 
@@ -171,14 +169,6 @@ class EntryWindow(Gtk.Window):
     def _entry_activated(self, *args):
         self._window_selected()
 
-    def _entry_keyrelease(self, *args):
-        keycode = args[1].get_keycode()[1]
-        if keycode == KEYCODE_CTRL:
-            self._is_ctrl_pressed = False
-        elif self._is_ctrl_pressed:
-            if keycode == KEYCODE_C:
-                    sys.exit(0)
-
     def _select_first_item(self):
         cursor = self.treeview.get_cursor()[0]
         if cursor is not None:
@@ -211,6 +201,8 @@ class EntryWindow(Gtk.Window):
 
     def _entry_keypress(self, *args):
         keycode = args[1].get_keycode()[1]
+        state = args[1].get_state()
+        is_ctrl_pressed = (state & state.CONTROL_MASK).bit_length() > 0
         # Don't switch focus in case of up/down arrow
         if keycode == KEYCODE_ARROW_DOWN:
             self._select_next_item()
@@ -220,7 +212,7 @@ class EntryWindow(Gtk.Window):
             self._is_ctrl_pressed = True
         elif keycode == KEYCODE_ESCAPE:
             sys.exit(0)
-        elif self._is_ctrl_pressed:
+        elif is_ctrl_pressed:
             if keycode == KEYCODE_D:
                 self._select_last_item()
             if keycode == KEYCODE_J:
@@ -342,7 +334,6 @@ class EntryWindow(Gtk.Window):
 lockfile_path = sys.argv[1]
 win = EntryWindow(lockfile_path)
 win.connect("delete-event", Gtk.main_quit)
-win.connect('notify::is-active', win.on_focus)
 win.show_all()
 win.realize()
 Gtk.main()
