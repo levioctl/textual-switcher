@@ -17,7 +17,8 @@ KEYCODE_L = 46
 KEYCODE_W = 25
 KEYCODE_C = 54
 KEYCODE_D = 40
-KEYCODE_BACKSPACE = 22
+KEYCODE_BACKSLASH = 22
+KEYCODE_BACKSPACE = 54
 
 
 class EntryWindow(Gtk.Window):
@@ -75,7 +76,8 @@ class EntryWindow(Gtk.Window):
                        "Ctrl+W/U: Empty search filter\n"
                        "Ctrl+L: Move to First (+reload)\n"
                        "Ctrl+D: Move to last\n"
-                       "Ctrl+Backspace: SIGKILL selected\n"
+                       "Ctrl+Backspace: SIGTERM selected\n"
+                       "Ctrl+\\: SIGKILL selected\n"
                        "Ctrl+C: Hide")
         label.set_justify(Gtk.Justification.LEFT)
         vbox.pack_start(label, False, True, 0)
@@ -232,7 +234,9 @@ class EntryWindow(Gtk.Window):
             elif keycode == KEYCODE_W:
                 self.entry.set_text("")
             elif keycode == KEYCODE_BACKSPACE:
-                self._kill_selected_process()
+                self._kill_selected_process("TERM")
+            elif keycode == KEYCODE_BACKSLASH:
+                self._kill_selected_process("KILL")
 
     def _treeview_keypress(self, *args):
         keycode = args[1].get_keycode()[1]
@@ -342,9 +346,9 @@ class EntryWindow(Gtk.Window):
                 print("Can't install GLib signal handler, too old gi.")
         register_signal()
 
-    def _kill_selected_process(self):
+    def _kill_selected_process(self, signal):
         pid = self._get_value_of_selected_row(self._COL_NR_PID)
-        params = ["kill", "-KILL", str(pid)]
+        params = ["kill", "-{}".format(signal), str(pid)]
         pid, stdin, stdout, _ = \
             GLib.spawn_async(
                 params,
