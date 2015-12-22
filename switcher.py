@@ -17,11 +17,12 @@ KEYCODE_L = 46
 KEYCODE_W = 25
 KEYCODE_C = 54
 KEYCODE_D = 40
+KEYCODE_BACKSPACE = 22
 
 
 class EntryWindow(Gtk.Window):
     WINDOW_TITLE = "Textual Switcher"
-    _COL_NR_ICON, _COL_NR_WINDOW_TITLE, _COL_NR_WM_CLASS, _COL_NR_WINDOW_ID = range(4)
+    _COL_NR_ICON, _COL_NR_WINDOW_TITLE, _COL_NR_PID, _COL_NR_WM_CLASS, _COL_NR_WINDOW_ID = range(5)
 
     def __init__(self, lockfile_path):
         Gtk.Window.__init__(self, title=self.WINDOW_TITLE)
@@ -41,7 +42,7 @@ class EntryWindow(Gtk.Window):
         self.entry.connect("activate", self._entry_activated)
         vbox.pack_start(self.entry, expand=False, fill=True, padding=0)
 
-        self.task_liststore = Gtk.ListStore(Pixbuf, str, str, int)
+        self.task_liststore = Gtk.ListStore(Pixbuf, str, int, str, int)
 
 
         self.task_filter = self.task_liststore.filter_new()
@@ -74,6 +75,7 @@ class EntryWindow(Gtk.Window):
                        "Ctrl+W/U: Empty search filter\n"
                        "Ctrl+L: Move to First (+reload)\n"
                        "Ctrl+D: Move to last\n"
+                       "Ctrl+Backspace: SIGKILL selected\n"
                        "Ctrl+C: Hide")
         label.set_justify(Gtk.Justification.LEFT)
         vbox.pack_start(label, False, True, 0)
@@ -118,7 +120,7 @@ class EntryWindow(Gtk.Window):
         self._update_xid()
         self.task_liststore.clear()
         icons = self._get_icons()
-        for window_id, wm_class, window_title in windows:
+        for window_id, pid, wm_class, window_title in windows:
             window_id_nr = int(window_id, 16)
             if self._xid == window_id_nr:
                 continue
@@ -127,11 +129,11 @@ class EntryWindow(Gtk.Window):
                 continue
             icon = icon.scale_simple(16, 16, InterpType.BILINEAR)
             window_title = self._combine_title_and_wm_class(window_title, wm_class)
-            self.task_liststore.append([icon, window_title, wm_class, window_id_nr])
+            self.task_liststore.append([icon, window_title, pid, wm_class, window_id_nr])
         self._select_first()
 
     def _async_update_task_liststore(self):
-        params = ["wmctrl", "-lx"]
+        params = ["wmctrl", "-lpx"]
         pid, stdin, stdout, _ = GLib.spawn_async(params,
             flags=GLib.SpawnFlags.SEARCH_PATH|GLib.SpawnFlags.DO_NOT_REAP_CHILD,                                       
             standard_output=True,
@@ -146,6 +148,9 @@ class EntryWindow(Gtk.Window):
                 desktop_id, line = line.split(" ", 1)
                 del desktop_id
                 line = line.lstrip()
+                pid, line = line.split(" ", 1)
+                pid = int(pid)
+                line = line.lstrip()
                 wm_class, line = line.split(" ", 1)
                 if wm_class == "N/A":
                     continue
@@ -153,7 +158,7 @@ class EntryWindow(Gtk.Window):
                 hostname, line = line.split(" ", 1)
                 del hostname
                 title = line.lstrip()
-                window = [xid, wm_class, title]
+                window = [xid, pid, wm_class, title]
                 windows.append(window)
             return windows
 
@@ -226,6 +231,8 @@ class EntryWindow(Gtk.Window):
                 self._select_first()
             elif keycode == KEYCODE_W:
                 self.entry.set_text("")
+            elif keycode == KEYCODE_BACKSPACE:
+                self._kill_selected_process()
 
     def _treeview_keypress(self, *args):
         keycode = args[1].get_keycode()[1]
@@ -233,7 +240,7 @@ class EntryWindow(Gtk.Window):
             self.entry.grab_focus()
             return False
 
-    def _window_selected(self, *_):
+    def _get_value_of_selected_row(self, col_nr):
         selection = self.treeview.get_selection()
         _filter, _iter = selection.get_selected()
         if _iter is None:
@@ -241,8 +248,13 @@ class EntryWindow(Gtk.Window):
                 _iter = _filter.get_iter(0)
             except ValueError:
                 # Nothing to select
-                return
-        window_id = _filter.get_value(_iter, self._COL_NR_WINDOW_ID)
+                return None
+        return _filter.get_value(_iter, col_nr)
+
+    def _window_selected(self, *_):
+        window_id = self._get_value_of_selected_row(self._COL_NR_WINDOW_ID)
+        if window_id is None:
+            return
         # move the selected window to the current workspace
         #subprocess.check_call(["xdotool", "windowmove", "--sync", window_id, "100", "100"])
         # raise it (the command below alone should do the job, but sometimes fails
@@ -329,6 +341,17 @@ class EntryWindow(Gtk.Window):
             else:
                 print("Can't install GLib signal handler, too old gi.")
         register_signal()
+
+    def _kill_selected_process(self):
+        pid = self._get_value_of_selected_row(self._COL_NR_PID)
+        params = ["kill", "-KILL", str(pid)]
+        pid, stdin, stdout, _ = \
+            GLib.spawn_async(
+                params,
+                flags=GLib.SpawnFlags.SEARCH_PATH|GLib.SpawnFlags.DO_NOT_REAP_CHILD, 
+                standard_output=True,
+                standard_error=True)
+        self._async_update_task_liststore()
 
 
 lockfile_path = sys.argv[1]
