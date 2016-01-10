@@ -160,6 +160,8 @@ class EntryWindow(Gtk.Window):
                 hostname, line = line.split(" ", 1)
                 del hostname
                 title = line.lstrip()
+                if title == "Desktop":
+                    continue
                 window = [xid, pid, wm_class, title]
                 windows.append(window)
             return windows
