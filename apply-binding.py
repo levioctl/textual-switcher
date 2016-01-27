@@ -7,19 +7,18 @@ BINDING_NAME = "textual-switcher"
 CUSTOM_KEYB_PATH = ""
 BINDING_LIST_PATH = ""
 WM = ''
+DEFAULT_DESKTOP = "gnome"
 
-def set_paths(wm):
+def set_paths():
     global BINDING_LIST_PATH
     global CUSTOM_KEYB_PATH
     global WM
-    if wm == 'cinnamon':
+    if WM == 'cinnamon':
         BINDING_LIST_PATH = "/org/cinnamon/desktop/keybindings/custom-list"
         CUSTOM_KEYB_PATH = "/org/cinnamon/desktop/keybindings/custom-keybindings"
-        WM = 'cinnamon'
-    if wm in ('gnome', 'unity'):
+    if WM in ('gnome', 'unity'):
         BINDING_LIST_PATH = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings"
         CUSTOM_KEYB_PATH = BINDING_LIST_PATH
-        WM = 'gnome'
 
 
 def dconf_write(path, value):
@@ -84,12 +83,13 @@ if __name__ == "__main__":
         sys.exit(1)
     cmd = sys.argv[1]
     key_combination = sys.argv[2]
-    wm = os.getenv("XDG_CURRENT_DESKTOP")
-    if wm is None:
-        wm = 'gnome' # default
-    if 'cinnamon' in wm.lower():
-        wm = 'cinnamon'
+    wm = os.getenv("XDG_CURRENT_DESKTOP", DEFAULT_DESKTOP)
+    if 'gnome' in wm.lower():
+        WM = 'gnome'
+    elif 'cinnamon' in wm.lower():
+        WM = 'cinnamon'
     else:
-        wm = 'gnome'
-    set_paths(wm)
+        print "Unsupported desktop environment: {}".format(wm)
+        sys.exit(1)
+    set_paths()
     set_binding(cmd, key_combination)

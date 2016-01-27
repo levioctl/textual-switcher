@@ -1,13 +1,13 @@
 KEY_COMBINATION="<Control><Alt>w"
-INSTALL_DIR="/usr/share/textual-switcher"
+INSTALL_DIR=/usr/share/textual-switcher
 LOCKFILE_PATH="/run/lock/textual_switcher.pid"
-KEY_BINDING="/bin/bash -c \"\ (ls \\'${LOCKFILE_PATH}\\' && /bin/kill -HUP \\\`cat ${LOCKFILE_PATH}\\\` ) || /usr/bin/python ${INSTALL_DIR}/switcher.py ${LOCKFILE_PATH}\""
+KEY_BINDING="${INSTALL_DIR}/launch"
 
 .PHONY: install
-install:
+install: launch
 	./install-prerequisites.sh
 	sudo mkdir -p ${INSTALL_DIR}
-	sudo cp switcher.py ${INSTALL_DIR}
+	sudo cp switcher.py launch ${INSTALL_DIR}
 	sudo touch ${LOCKFILE_PATH}
 	sudo chmod 777 ${LOCKFILE_PATH}
 	python apply-binding.py ${KEY_BINDING} ${KEY_COMBINATION}
@@ -15,3 +15,6 @@ install:
 
 run:
 	python switcher.py
+
+launch: launch.c
+	gcc -Wall -Werror -pedantic -std=c99 launch.c -o launch
