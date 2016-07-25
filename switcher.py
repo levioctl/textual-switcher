@@ -2,6 +2,7 @@ import os
 import sys
 import signal
 import subprocess
+from fuzzywuzzy import fuzz
 from gi.repository.GdkPixbuf import Pixbuf, InterpType
 from gi.repository import Gtk, GdkX11, Wnck, GLib
 
@@ -315,6 +316,8 @@ class EntryWindow(Gtk.Window):
         normalized_wm_class = self._normalize(wm_class)
         if wm_class in self._normalized_search_key or \
             self._normalized_search_key in normalized_wm_class:
+            return True
+        if fuzz.ratio(proc_title, wm_class) > 50:
             return True
         return False
 
