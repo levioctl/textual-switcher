@@ -6,7 +6,7 @@ APT_GET_CMD=$(which apt-get)
 if [[ ! -z $YUM_CMD ]]; then
 PKG_MGR_CMD="sudo yum install -y"
 elif [[ ! -z $APT_GET_CMD ]]; then
-PKG_MGR_CMD="sudo apt install -y"
+PKG_MGR_CMD="sudo apt-get install -y"
 else
 	echo "Error: Package manager was not found."
 	exit 1;
