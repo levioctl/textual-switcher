@@ -317,7 +317,9 @@ class EntryWindow(Gtk.Window):
         if wm_class in self._normalized_search_key or \
             self._normalized_search_key in normalized_wm_class:
             return True
-        if fuzz.ratio(proc_title, wm_class) > 50:
+        if fuzz.ratio(self._normalized_search_key, normalized_proc_title) > 30:
+            return True
+        if fuzz.ratio(self._normalized_search_key, normalized_wm_class) > 30:
             return True
         return False
 
