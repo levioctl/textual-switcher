@@ -118,8 +118,8 @@ class EntryWindow(Gtk.Window):
         return combined_title
 
     def _get_window_at_index(self, index):
-        title = self.task_liststore.get_value(self.task_liststore.get_iter(1), self._COL_NR_WINDOW_TITLE)
-        wm_class = self.task_liststore.get_value(self.task_liststore.get_iter(1), self._COL_NR_WM_CLASS)
+        title = self.task_liststore.get_value(self.task_liststore.get_iter(index), self._COL_NR_WINDOW_TITLE)
+        wm_class = self.task_liststore.get_value(self.task_liststore.get_iter(index), self._COL_NR_WM_CLASS)
         return title, wm_class
 
     def _compare_windows(self, window_a_index, window_b_index):
@@ -128,9 +128,9 @@ class EntryWindow(Gtk.Window):
         title, wm_class = self._get_window_at_index(window_b_index)
         window_b_score = self._window_title_score(title, wm_class)
         if window_a_score > window_b_score:
-            return 1
-        elif window_b_score > window_a_score:
             return -1
+        elif window_b_score > window_a_score:
+            return 1
         return 0
 
     def _update_task_liststore_callback(self, windows):
@@ -348,6 +348,8 @@ class EntryWindow(Gtk.Window):
         proc_title = model[iter][self._COL_NR_WINDOW_TITLE]
         wm_class = model[iter][self._COL_NR_WM_CLASS]
         score = self._window_title_score(proc_title, wm_class)
+        if score > 30:
+            print proc_title, score
         return score > 30
 
     def _write_pid_file(self):
