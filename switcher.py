@@ -117,6 +117,22 @@ class EntryWindow(Gtk.Window):
             combined_title = window_title
         return combined_title
 
+    def _get_window_at_index(self, index):
+        title = self.task_liststore.get_value(self.task_liststore.get_iter(1), self._COL_NR_WINDOW_TITLE)
+        wm_class = self.task_liststore.get_value(self.task_liststore.get_iter(1), self._COL_NR_WM_CLASS)
+        return title, wm_class
+
+    def _compare_windows(self, window_a_index, window_b_index):
+        title, wm_class = self._get_window_at_index(window_a_index)
+        window_a_score = self._window_title_score(title, wm_class)
+        title, wm_class = self._get_window_at_index(window_b_index)
+        window_b_score = self._window_title_score(title, wm_class)
+        if window_a_score > window_b_score:
+            return 1
+        elif window_b_score > window_a_score:
+            return -1
+        return 0
+
     def _update_task_liststore_callback(self, windows):
         if not windows:
             return
@@ -295,7 +311,13 @@ class EntryWindow(Gtk.Window):
         search_key = entry.get_text()
         self._normalized_search_key = self._normalize(search_key)
         self.task_filter.refilter()
+        self._sort_windows()
         self._select_first()
+
+    def _sort_windows(self):
+        order = range(len(self.task_liststore))
+        order.sort(cmp=self._compare_windows)
+        self.task_liststore.reorder(order)
 
     def _select_first(self):
         self.treeview.set_cursor(0)
@@ -306,22 +328,27 @@ class EntryWindow(Gtk.Window):
         title = title.lower()
         return title
 
-    def task_filter_func(self, model, iter, data):
-        proc_title = model[iter][self._COL_NR_WINDOW_TITLE]
+    def _window_title_score(self, proc_title, wm_class):
+        if not self._normalized_search_key:
+            return 100
         normalized_proc_title = self._normalize(proc_title)
         if normalized_proc_title in self._normalized_search_key or \
             self._normalized_search_key in normalized_proc_title:
-            return True
-        wm_class = model[iter][self._COL_NR_WM_CLASS]
+            return 100
         normalized_wm_class = self._normalize(wm_class)
         if wm_class in self._normalized_search_key or \
             self._normalized_search_key in normalized_wm_class:
-            return True
-        if fuzz.ratio(self._normalized_search_key, normalized_proc_title) > 30:
-            return True
-        if fuzz.ratio(self._normalized_search_key, normalized_wm_class) > 30:
-            return True
-        return False
+            return 100
+        first_ratio = fuzz.ratio(self._normalized_search_key, normalized_proc_title)
+        second_ratio = fuzz.ratio(self._normalized_search_key, normalized_wm_class)
+        score = max(first_ratio, second_ratio)
+        return score
+
+    def task_filter_func(self, model, iter, data):
+        proc_title = model[iter][self._COL_NR_WINDOW_TITLE]
+        wm_class = model[iter][self._COL_NR_WM_CLASS]
+        score = self._window_title_score(proc_title, wm_class)
+        return score > 30
 
     def _write_pid_file(self):
         with open(self._lockfile_path, "wb") as f:
