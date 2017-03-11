@@ -293,7 +293,7 @@ class EntryWindow(Gtk.Window):
     @staticmethod
     def focus_on_window(window_id):
         window_id = hex(window_id)
-        cmd = ["wmctrl", "-iR", window_id]
+        cmd = ["wmctrl", "-ia", window_id]
         subprocess.check_call(cmd)
 
     @staticmethod
