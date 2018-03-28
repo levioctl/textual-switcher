@@ -398,9 +398,14 @@ class EntryWindow(Gtk.Window):
         self._async_update_task_liststore()
 
 
-lockfile_path = sys.argv[1]
-win = EntryWindow(lockfile_path)
-win.connect("delete-event", Gtk.main_quit)
-win.show_all()
-win.realize()
-Gtk.main()
+if __name__ == "__main__":
+    # Not using an argument parser to not waste time in latency
+    if len(sys.argv) != 2:
+        print "Please specify the PID file as an argument"
+        sys.exit(1)
+    lockfile_path = sys.argv[1]
+    win = EntryWindow(lockfile_path)
+    win.connect("delete-event", Gtk.main_quit)
+    win.show_all()
+    win.realize()
+    Gtk.main()
