@@ -2,13 +2,14 @@ import os
 import sys
 import signal
 import subprocess
-from fuzzywuzzy import fuzz
 import gi
 gi.require_version('GdkPixbuf', '2.0')
 gi.require_version('Gtk', '3.0')
 gi.require_version('Wnck', '3.0')
 from gi.repository.GdkPixbuf import Pixbuf, InterpType
 from gi.repository import Gtk, GdkX11, Wnck, GLib
+import listfilter
+import windowmanager
 
 
 KEYCODE_ESCAPE = 9
@@ -36,27 +37,26 @@ class EntryWindow(Gtk.Window):
         self.set_position(Gtk.WindowPosition.CENTER)
 
         self._xid = None
-        self._normalized_search_key = ""
 
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.add(vbox)
 
         self.entry = Gtk.Entry()
         self.entry.set_text("")
-        self.entry.connect("changed", self._text_changed)
-        self.entry.connect("key-press-event", self._entry_keypress)
-        self.entry.connect("activate", self._entry_activated)
+        self.entry.connect("changed", self._text_changed_callback)
+        self.entry.connect("key-press-event", self._entry_keypress_callback)
+        self.entry.connect("activate", self._entry_activated_callback)
         vbox.pack_start(self.entry, expand=False, fill=True, padding=0)
 
         self.task_liststore = Gtk.ListStore(Pixbuf, str, int, str, int)
 
 
         self.task_filter = self.task_liststore.filter_new()
-        self.task_filter.set_visible_func(self.task_filter_func)
+        self.task_filter.set_visible_func(self._filter_window_list_by_search_key)
 
         self.treeview = Gtk.TreeView.new_with_model(self.task_filter)
         self.treeview.set_headers_visible(False)
-        self.treeview.connect("row-activated", self._window_selected)
+        self.treeview.connect("row-activated", self._window_selected_callback)
         self.treeview.connect("key-press-event", self._treeview_keypress)
         columns = {self._COL_NR_ICON: "Icon",
                    self._COL_NR_WINDOW_TITLE: "Title"}
@@ -76,15 +76,17 @@ class EntryWindow(Gtk.Window):
         self._is_ctrl_pressed = False
 
         label = Gtk.Label()
-        label.set_text("Ctrl+J: Move one down\n"
-                       "Ctrl+K: Move one up\n"
+        label.set_text("Ctrl+J: Down\n"
+                       "Ctrl+K: Up\n"
                        "Ctrl+W/U: Empty search filter\n"
-                       "Ctrl+L: Move to First (+reload)\n"
-                       "Ctrl+D: Move to last\n"
+                       "Ctrl+L: First (+reload)\n"
+                       "Ctrl+D: Last\n"
                        "Ctrl+Backspace: SIGTERM selected\n"
                        "Ctrl+\\: SIGKILL selected\n"
                        "Ctrl+C: Hide")
         label.set_justify(Gtk.Justification.LEFT)
+        self._wmcontrol = windowmanager.WindowManager(GLib)
+        self._listfilter = listfilter.ListFilter()
         vbox.pack_start(label, False, True, 0)
         self._lockfile_path = lockfile_path
         self.register_sighup(self._focus_on_me)
@@ -92,7 +94,7 @@ class EntryWindow(Gtk.Window):
 
     def _focus_on_me(self):
         self.set_visible(True)
-        self.async_focus_on_window(self._xid)
+        self._wmcontrol.async_focus_on_window(self._xid)
         self._async_update_task_liststore()
         self.entry.set_text("")
 
@@ -128,9 +130,9 @@ class EntryWindow(Gtk.Window):
 
     def _compare_windows(self, window_a_index, window_b_index):
         title, wm_class = self._get_window_at_index(window_a_index)
-        window_a_score = self._window_title_score(title, wm_class)
+        window_a_score = self._get_window_title_score(title, wm_class)
         title, wm_class = self._get_window_at_index(window_b_index)
-        window_b_score = self._window_title_score(title, wm_class)
+        window_b_score = self._get_window_title_score(title, wm_class)
         if window_a_score > window_b_score:
             return -1
         elif window_b_score > window_a_score:
@@ -156,48 +158,10 @@ class EntryWindow(Gtk.Window):
         self._select_first()
 
     def _async_update_task_liststore(self):
-        params = ["wmctrl", "-lpx"]
-        pid, stdin, stdout, _ = GLib.spawn_async(params,
-            flags=GLib.SpawnFlags.SEARCH_PATH|GLib.SpawnFlags.DO_NOT_REAP_CHILD,                                       
-            standard_output=True,
-            standard_error=True)
-        io = GLib.IOChannel(stdout)
+        self._wmcontrol.async_list_windows(callback=self._update_task_liststore_callback)
 
-        def parse_wlist_output(wlist_output):
-            windows = list()
-            for line in wlist_output.splitlines():
-                xid, line = line.split(" ", 1)
-                line = line.lstrip()
-                desktop_id, line = line.split(" ", 1)
-                del desktop_id
-                line = line.lstrip()
-                pid, line = line.split(" ", 1)
-                pid = int(pid)
-                line = line.lstrip()
-                wm_class, line = line.split(" ", 1)
-                if wm_class == "N/A":
-                    continue
-                line = line.lstrip()
-                hostname, line = line.split(" ", 1)
-                del hostname
-                title = line.lstrip()
-                if title == "Desktop":
-                    continue
-                window = [xid, pid, wm_class, title]
-                windows.append(window)
-            return windows
-
-        def wlist_finish_callback(*args, **kwargs):
-            wlist_output = io.read()
-            windows = parse_wlist_output(wlist_output)
-            self._update_task_liststore_callback(windows)
-
-        self.source_id_out = io.add_watch(GLib.IO_IN|GLib.IO_HUP,
-                                          wlist_finish_callback,
-                                          priority=GLib.PRIORITY_HIGH)
-
-    def _entry_activated(self, *args):
-        self._window_selected()
+    def _entry_activated_callback(self, *args):
+        self._window_selected_callback()
 
     def _select_first_item(self):
         cursor = self.treeview.get_cursor()[0]
@@ -229,7 +193,7 @@ class EntryWindow(Gtk.Window):
                 self.treeview.set_cursor(index - 1)
         return True
 
-    def _entry_keypress(self, *args):
+    def _entry_keypress_callback(self, *args):
         keycode = args[1].get_keycode()[1]
         state = args[1].get_state()
         is_ctrl_pressed = (state & state.CONTROL_MASK).bit_length() > 0
@@ -278,42 +242,24 @@ class EntryWindow(Gtk.Window):
                 return None
         return _filter.get_value(_iter, col_nr)
 
-    def _window_selected(self, *_):
+    def _window_selected_callback(self, *_):
         window_id = self._get_value_of_selected_row(self._COL_NR_WINDOW_ID)
         if window_id is None:
             return
-        # move the selected window to the current workspace
-        #subprocess.check_call(["xdotool", "windowmove", "--sync", window_id, "100", "100"])
-        # raise it (the command below alone should do the job, but sometimes fails
-        # on firefox windows without first moving the window).
         try:
-            self.focus_on_window(window_id)
+            self._wmcontrol.focus_on_window(window_id)
             self.set_visible(False)
         except subprocess.CalledProcessError:
             # Actual tasks list has changed since last reload
             self._async_update_task_liststore()
         self._select_first()
 
-    @staticmethod
-    def focus_on_window(window_id):
-        window_id = hex(window_id)
-        cmd = ["wmctrl", "-ia", window_id]
-        subprocess.check_call(cmd)
+    def async_focus_on_window(self, window_id):
+        self._wmcontrol.async_focus_on_window(window_id)
 
-    @staticmethod
-    def async_focus_on_window(window_id):
-        window_id = hex(window_id)
-        params = ["wmctrl", "-iR", window_id]
-        pid, stdin, stdout, _ = \
-            GLib.spawn_async(
-                params,
-                flags=GLib.SpawnFlags.SEARCH_PATH|GLib.SpawnFlags.DO_NOT_REAP_CHILD, 
-                standard_output=True,
-                standard_error=True)
-
-    def _text_changed(self, entry):
+    def _text_changed_callback(self, entry):
         search_key = entry.get_text()
-        self._normalized_search_key = self._normalize(search_key)
+        self._listfilter.update_search_key(search_key)
         self.task_filter.refilter()
         self._sort_windows()
         self._select_first()
@@ -326,32 +272,15 @@ class EntryWindow(Gtk.Window):
     def _select_first(self):
         self.treeview.set_cursor(0)
 
-    def _normalize(self, title):
-        for c in [" ", "\n", "\t"]:
-            title = title.replace(c, "")
-        title = title.lower()
-        return title
+    def _get_window_title_score(self, proc_title, wm_class):
+        proc_title_score = self._listfilter.get_candidate_score(proc_title)
+        wm_class_score = self._listfilter.get_candidate_score(wm_class)
+        return max(proc_title_score, wm_class_score)
 
-    def _window_title_score(self, proc_title, wm_class):
-        if not self._normalized_search_key:
-            return 100
-        normalized_proc_title = self._normalize(proc_title)
-        if normalized_proc_title in self._normalized_search_key or \
-            self._normalized_search_key in normalized_proc_title:
-            return 100
-        normalized_wm_class = self._normalize(wm_class)
-        if wm_class in self._normalized_search_key or \
-            self._normalized_search_key in normalized_wm_class:
-            return 100
-        first_ratio = fuzz.ratio(self._normalized_search_key, normalized_proc_title)
-        second_ratio = fuzz.ratio(self._normalized_search_key, normalized_wm_class)
-        score = max(first_ratio, second_ratio)
-        return score
-
-    def task_filter_func(self, model, iter, data):
+    def _filter_window_list_by_search_key(self, model, iter, data):
         proc_title = model[iter][self._COL_NR_WINDOW_TITLE]
         wm_class = model[iter][self._COL_NR_WM_CLASS]
-        score = self._window_title_score(proc_title, wm_class)
+        score = self._get_window_title_score(proc_title, wm_class)
         if score > 30:
             print proc_title, score
         return score > 30
