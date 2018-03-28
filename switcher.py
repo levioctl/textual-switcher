@@ -3,6 +3,10 @@ import sys
 import signal
 import subprocess
 from fuzzywuzzy import fuzz
+import gi
+gi.require_version('GdkPixbuf', '2.0')
+gi.require_version('Gtk', '3.0')
+gi.require_version('Wnck', '3.0')
 from gi.repository.GdkPixbuf import Pixbuf, InterpType
 from gi.repository import Gtk, GdkX11, Wnck, GLib
 
