@@ -21,9 +21,7 @@ void exec_switcher(void)
                              (char*)SCRIPT_PATH,
                              (char*)PID_FILE_PATH,
                              NULL};
-    printf("Executing switcher...\n");
     execvp(PYTHON_EXE_PATH, switcher_argv);
-    printf("Could not execute python\n");
     exit(1);
 }
 
