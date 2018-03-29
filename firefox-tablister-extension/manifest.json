@@ -9,7 +9,7 @@
   "background": {
       "scripts": ["textual-switcher-agent.js"]
   },
-  "permissions": ["nativeMessaging"],
+  "permissions": ["nativeMessaging", "tabs"],
 
   "browser_action": {
   },

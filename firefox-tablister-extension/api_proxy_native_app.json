@@ -1,7 +1,7 @@
 {
   "name": "api_proxy_native_app",
   "description": "An intermediary background application for passing API requests (list tabs, switch tab) from the main textual-switcher process to the firefox extention. Needed because Firefox extentions are only allowed to communicate with outside applications that they run.",
-  "path": "/home/eliran/code/textual-switcher/firefox-extension/api_proxy_native_app.py",
+  "path": "/home/eliran/code/textual-switcher/firefox-tablister-extension/api_proxy_native_app.py",
   "type": "stdio",
   "allowed_extensions": [ "textual-switcher-agent@asd.com" ]
 }
