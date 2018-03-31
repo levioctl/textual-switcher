@@ -236,9 +236,12 @@ class EntryWindow(Gtk.Window):
         if keycode not in (KEYCODE_ARROW_UP, KEYCODE_ARROW_DOWN):
             self._search_textbox.grab_focus()
 
-    def _get_value_of_selected_row(self, col_nr):
+    def _get_selected_row(self):
         selection = self._treeview.get_selection()
-        _filter, _iter = selection.get_selected()
+        return selection.get_selected()
+
+    def _get_value_of_selected_row(self, col_nr):
+        _filter, _iter = self._get_selected_row()
         if _iter is None:
             try:
                 _iter = _filter.get_iter(0)
@@ -246,6 +249,10 @@ class EntryWindow(Gtk.Window):
                 # Nothing to select
                 return None
         return _filter.get_value(_iter, col_nr)
+
+    def _is_some_window_selected(self):
+        _, _iter = self._get_selected_row()
+        return _iter is not None
 
     def _window_selected_callback(self, *_):
         window_id = self._get_value_of_selected_row(self._COL_NR_WINDOW_ID)
@@ -267,6 +274,8 @@ class EntryWindow(Gtk.Window):
         self._listfilter.update_search_key(search_key)
         self._list_filter.refilter()
         self._sort_windows()
+        if not self._is_some_window_selected():
+            self._select_first_window()
 
     def _sort_windows(self):
         order = range(len(self._windows_listbox))
