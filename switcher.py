@@ -9,6 +9,7 @@ gi.require_version('Wnck', '3.0')
 from gi.repository.GdkPixbuf import Pixbuf, InterpType
 from gi.repository import Gtk, GdkX11, Wnck, GLib
 import listfilter
+import tabcontrol
 import windowmanager
 
 
@@ -30,6 +31,7 @@ KEYCODE_BACKSPACE = 54
 class EntryWindow(Gtk.Window):
     WINDOW_TITLE = "Textual Switcher"
     _COL_NR_ICON, _COL_NR_WINDOW_TITLE, _COL_NR_PID, _COL_NR_WM_CLASS, _COL_NR_WINDOW_ID = range(5)
+    BROWSERS_WM_CLASSES = ["Navigator.Firefox"]
 
     def __init__(self, lockfile_path):
         Gtk.Window.__init__(self, title=self.WINDOW_TITLE)
@@ -87,6 +89,7 @@ class EntryWindow(Gtk.Window):
         label.set_justify(Gtk.Justification.LEFT)
         self._wmcontrol = windowmanager.WindowManager(GLib)
         self._listfilter = listfilter.ListFilter()
+        self._tabcontrol = tabcontrol.TabControl(GLib, self._update_tabs_callback)
         vbox.pack_start(label, False, True, 0)
         self._lockfile_path = lockfile_path
         self.register_sighup(self._focus_on_me)
@@ -140,22 +143,28 @@ class EntryWindow(Gtk.Window):
         return 0
 
     def _update_task_liststore_callback(self, windows):
-        if not windows:
-            return
         self._update_xid()
         self.task_liststore.clear()
         icons = self._get_icons()
-        for window_id, pid, wm_class, window_title in windows:
-            window_id_nr = int(window_id, 16)
-            if self._xid == window_id_nr:
-                continue
-            icon = icons.get(window_id_nr, None)
+        windows_other_than_me = [window for window in windows if int(window[0], 16) != self._xid]
+        for window_id_hex_str, pid, wm_class, window_title in windows_other_than_me:
+            window_id = int(window_id_hex_str, 16)
+            icon = icons.get(window_id, None)
             if icon is None:
+                print 'No icon for window %d' % (window_id,)
                 continue
             icon = icon.scale_simple(16, 16, InterpType.BILINEAR)
-            window_title = self._combine_title_and_wm_class(window_title, wm_class)
-            self.task_liststore.append([icon, window_title, pid, wm_class, window_id_nr])
+            window_row_label = self._combine_title_and_wm_class(window_title, wm_class)
+            self.task_liststore.append([icon, window_row_label, pid, wm_class, window_id])
         self._select_first()
+        self._async_list_tabs_from_windows_list(windows_other_than_me)
+
+    def _async_list_tabs_from_windows_list(self, windows):
+        active_browser_pids = [window[1] for window in windows if window[2] in self.BROWSERS_WM_CLASSES]
+        self._tabcontrol.async_list_browser_tabs(active_browser_pids)
+
+    def _update_tabs_callback(self, tabs):
+        print tabs
 
     def _async_update_task_liststore(self):
         self._wmcontrol.async_list_windows(callback=self._update_task_liststore_callback)
@@ -281,8 +290,6 @@ class EntryWindow(Gtk.Window):
         proc_title = model[iter][self._COL_NR_WINDOW_TITLE]
         wm_class = model[iter][self._COL_NR_WM_CLASS]
         score = self._get_window_title_score(proc_title, wm_class)
-        if score > 30:
-            print proc_title, score
         return score > 30
 
     def _write_pid_file(self):
