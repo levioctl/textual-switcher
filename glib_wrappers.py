@@ -20,7 +20,6 @@ def register_signal(callback, signal_type):
             unix_signal_add = GLib.unix_signal_add_full
 
         if unix_signal_add is not None:
-            print("Register GLib signal handler: %r" % sig)
             unix_signal_add(GLib.PRIORITY_HIGH, sig, handler, sig)
         else:
             print("Can't install GLib signal handler; gi version is too old.")
