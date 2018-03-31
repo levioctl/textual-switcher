@@ -265,7 +265,6 @@ class EntryWindow(Gtk.Window):
         self._listfilter.update_search_key(search_key)
         self._list_filter.refilter()
         self._sort_windows()
-        self._select_first_window()
 
     def _sort_windows(self):
         order = range(len(self._windows_listbox))
