@@ -1,14 +1,16 @@
 import gi
+import os
 import sys
 import signal
 import subprocess
 gi.require_version('GdkPixbuf', '2.0')
 gi.require_version('Gtk', '3.0')
 from gi.repository.GdkPixbuf import Pixbuf
-from gi.repository import Gtk, GdkX11, GLib
+from gi.repository import Gtk, GdkX11
 import pidfile
 import listfilter
 import tabcontrol
+import glib_wrappers
 import windowcontrol
 
 
@@ -41,10 +43,10 @@ class EntryWindow(Gtk.Window):
         self._treeview = self._create_treeview()
         self._select_first_window()
         self._is_ctrl_pressed = False
-        self._windowcontrol = windowcontrol.WindowControl(GLib)
+        self._windowcontrol = windowcontrol.WindowControl()
         self._listfilter = listfilter.ListFilter()
-        self._tabcontrol = tabcontrol.TabControl(GLib, self._update_tabs_callback)
-        self.register_sighup(self._focus_on_me)
+        self._tabcontrol = tabcontrol.TabControl(self._update_tabs_callback)
+        glib_wrappers.register_signal(self._focus_on_me, signal.SIGHUP)
         self._set_window_properties()
         self._add_gui_components_to_window()
         self._async_refresh_window_list()
@@ -225,9 +227,9 @@ class EntryWindow(Gtk.Window):
             elif keycode == KEYCODE_W:
                 self._search_textbox.set_text("")
             elif keycode == KEYCODE_BACKSPACE:
-                self._kill_selected_process("TERM")
+                self._send_signal_to_selected_process(signal.SIGTERM)
             elif keycode == KEYCODE_BACKSLASH:
-                self._kill_selected_process("KILL")
+                self._send_signal_to_selected_process(signal.SIGKILL)
 
     def _treeview_keypress(self, *args):
         keycode = args[1].get_keycode()[1]
@@ -285,40 +287,9 @@ class EntryWindow(Gtk.Window):
         score = self._get_window_title_score(proc_title, wm_class)
         return score > 30
 
-    def register_sighup(self, callback):
-        def register_signal():
-            GLib.idle_add(install_glib_handler, signal.SIGHUP, priority=GLib.PRIORITY_HIGH)
-
-        def handler(*args):
-            signal_nr = args[0]
-            if signal_nr == signal.SIGHUP:
-                callback()
-                register_signal()
-
-        def install_glib_handler(sig):
-            unix_signal_add = None
-
-            if hasattr(GLib, "unix_signal_add"):
-                unix_signal_add = GLib.unix_signal_add
-            elif hasattr(GLib, "unix_signal_add_full"):
-                unix_signal_add = GLib.unix_signal_add_full
-
-            if unix_signal_add:
-                print("Register GLib signal handler: %r" % sig)
-                unix_signal_add(GLib.PRIORITY_HIGH, sig, handler, sig)
-            else:
-                print("Can't install GLib signal handler, too old gi.")
-        register_signal()
-
-    def _kill_selected_process(self, signal):
+    def _send_signal_to_selected_process(self, signal_type):
         pid = self._get_value_of_selected_row(self._COL_NR_PID)
-        params = ["kill", "-{}".format(signal), str(pid)]
-        pid, stdin, stdout, _ = \
-            GLib.spawn_async(
-                params,
-                flags=GLib.SpawnFlags.SEARCH_PATH|GLib.SpawnFlags.DO_NOT_REAP_CHILD,
-                standard_output=True,
-                standard_error=True)
+        os.kill(pid, signal_type)
         self._async_refresh_window_list()
 
 

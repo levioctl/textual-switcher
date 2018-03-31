@@ -2,6 +2,7 @@ import os
 import json
 import struct
 import os.path
+from gi.repository import GLib
 
 
 class ApiProxyNotReady(Exception): pass
@@ -12,10 +13,9 @@ class TabControl(object):
     OUT_PIPE_FILENAME = os.path.join(API_PROXY_NAMED_PIPES_DIR, "textual_switcher_to_api_proxy_for_firefox_pid_%d")
     IN_PIPE_FILENAME = os.path.join(API_PROXY_NAMED_PIPES_DIR, "api_proxy_to_textual_switcher_for_firefox_pid_%d")
 
-    def __init__(self, glib, update_tabs_callback):
+    def __init__(self, update_tabs_callback):
         self._in_fds_by_browser_id = dict()
         self._out_fds_by_browser_id = dict()
-        self._glib = glib
         self._update_tabs_callback = update_tabs_callback
         self._in_id = None
 
@@ -34,7 +34,7 @@ class TabControl(object):
 
     def _activate_callback_for_one_message_from_api_proxy(self, pid):
         in_fd = self._in_fds_by_browser_id[pid]
-        self._glib.io_add_watch(in_fd, self._glib.IO_IN, self._receive_message_from_api_proxy)
+        GLib.io_add_watch(in_fd, GLib.IO_IN, self._receive_message_from_api_proxy)
 
     def _is_connected_to_api_proxy_for_browser_pid(self, pid):
         return pid in self._in_fds_by_browser_id and pid in self._out_fds_by_browser_id

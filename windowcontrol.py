@@ -1,8 +1,9 @@
 import gi
 import subprocess
 gi.require_version('Wnck', '3.0')
-from gi.repository import Wnck
+from gi.repository import Wnck, GLib
 from gi.repository.GdkPixbuf import InterpType
+import glib_wrappers
 
 
 class Window(object):
@@ -18,16 +19,9 @@ class Window(object):
 class WindowControl(object):
     LIST_WINDOWS_COMMAND = ["wmctrl", "-lpx"]
 
-    def __init__(self, glib):
-        self._glib = glib
-
     def async_list_windows(self, callback):
-        _, _, stdout, _ = self._glib.spawn_async(self.LIST_WINDOWS_COMMAND,
-            flags=self._glib.SpawnFlags.SEARCH_PATH|self._glib.SpawnFlags.DO_NOT_REAP_CHILD,
-            standard_output=True,
-            standard_error=True)
-        io = self._glib.IOChannel(stdout)
-
+        stdout = glib_wrappers.async_run_subprocess(self.LIST_WINDOWS_COMMAND)
+        io = GLib.IOChannel(stdout)
 
         def list_windows_callback(*_, **__):
             output = io.read()
@@ -37,7 +31,7 @@ class WindowControl(object):
                 window.icon = self._get_window_icon(window, icons)
             callback(windows)
 
-        io.add_watch(self._glib.IO_IN|self._glib.IO_HUP, list_windows_callback)
+        io.add_watch(GLib.IO_IN | GLib.IO_HUP, list_windows_callback)
 
     @staticmethod
     def _get_window_icon(window, icons):
@@ -49,17 +43,13 @@ class WindowControl(object):
     @staticmethod
     def focus_on_window(window_id):
         window_id = hex(window_id)
-        cmd = ["wmctrl", "-ia", window_id]
-        subprocess.check_call(cmd)
+        command = ["wmctrl", "-ia", window_id]
+        glib_wrappers.async_run_subprocess(command)
 
     def async_focus_on_window(self, window_id):
         window_id = hex(window_id)
-        params = ["wmctrl", "-iR", window_id]
-        self._glib.spawn_async(
-            params,
-            flags=self._glib.SpawnFlags.SEARCH_PATH|self._glib.SpawnFlags.DO_NOT_REAP_CHILD,
-            standard_output=True,
-            standard_error=True)
+        command = ["wmctrl", "-iR", window_id]
+        glib_wrappers.async_run_subprocess(command)
 
     @staticmethod
     def parse_wlist_output(wlist_output):
