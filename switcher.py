@@ -158,10 +158,10 @@ class EntryWindow(Gtk.Window):
         return 0
 
     def _update_windows_listbox_callback(self, windows):
+        windows = [window for window in windows if window.xid != self._get_xid()]
         self._windows = {window.xid: window for window in windows}
         self._refresh_tree()
-        windows_other_than_me = [window for window in windows if window.xid != self._get_xid()]
-        self._async_list_tabs_from_windows_list(windows_other_than_me)
+        self._async_list_tabs_from_windows_list(windows)
 
     def _refresh_tree(self):
         self._tree.clear()
