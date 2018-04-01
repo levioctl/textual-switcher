@@ -38,7 +38,7 @@ class WindowControl(object):
         icon = icons.get(window.xid, None)
         if icon is None:
             print 'No icon for window %d' % (window.xid,)
-        return icon.scale_simple(16, 16, InterpType.BILINEAR)
+        return icon.scale_simple(25, 25, InterpType.BILINEAR)
 
     @staticmethod
     def focus_on_window(window_id):

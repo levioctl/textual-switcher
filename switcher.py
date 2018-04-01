@@ -7,9 +7,8 @@ import expiringdict
 gi.require_version('GdkPixbuf', '2.0')
 gi.require_version('Gtk', '3.0')
 from gi.repository.GdkPixbuf import Pixbuf
-from gi.repository import Gtk, GdkX11
+from gi.repository import Gtk, GdkX11, Gio
 import pidfile
-import filecache
 import listfilter
 import tabcontrol
 import glib_wrappers
@@ -104,7 +103,7 @@ class EntryWindow(Gtk.Window):
                 renderer = Gtk.CellRendererPixbuf()
                 column = Gtk.TreeViewColumn(column_title, renderer, pixbuf=i)
             treeview.append_column(column)
-        treeview.set_level_indentation(20)
+        treeview.set_level_indentation(30)
         return treeview
 
     def _create_treeview_scroll_wrapper(self):
@@ -168,33 +167,42 @@ class EntryWindow(Gtk.Window):
     def _update_windows_listbox_callback(self, windows):
         self._windows = windows
         self._refresh_tree()
+        windows_other_than_me = [window for window in self._windows if window.xid != self._get_xid()]
+        self._async_list_tabs_from_windows_list(windows_other_than_me)
 
     def _refresh_tree(self):
         self._tree.clear()
-        windows_other_than_me = [window for window in self._windows if window.xid != self._get_xid()]
         for window in self._windows:
             window_row_label = self._combine_title_and_wm_class(window.title, window.wm_class)
             token = window.title + ' '.join(tab['title'] for tab in self._tabs.get(window.pid, []))
             row_iter = self._tree.append(None, [window.icon, window_row_label, window.pid, window.wm_class, window.xid, token])
-            if window.pid in self._tabs:
-                for tab in self._tabs[window.pid]:
-                    icon = window.icon
-                    if 'favIconUrl' in tab:
-                        if tab['favIconUrl'] in self._icon_cache:
-                            icon = self._icon_cache[tab['favIconUrl']]
-                            icon = window.icon
-                        else:
-                            print 'fetching ', tab['favIconUrl']
-                            glib_wrappers.async_get_url(tab['favIconUrl'], self._icon_ready_callback)
-                            self._icon_cache[tab['favIconUrl']] = window.icon
-                    self._tree.append(row_iter, [icon, tab['title'], window.pid, None, window.xid, tab['title']])
+            is_browser = window.pid in self._tabs
+            if is_browser:
+                self._add_tabs_of_window_to_tree(window, row_iter)
         self._enforce_expanded_mode()
         self._select_first_window()
-        self._async_list_tabs_from_windows_list(windows_other_than_me)
+
+    def _add_tabs_of_window_to_tree(self, window, row_iter):
+        for tab in self._tabs[window.pid]:
+            icon = self._get_icon_of_tab(tab, window)
+            self._tree.append(row_iter, [icon, tab['title'], window.pid, None, window.xid, tab['title']])
+
+    def _get_icon_of_tab(self, tab, window):
+        if 'favIconUrl' in tab:
+            if tab['favIconUrl'] in self._icon_cache:
+                icon = self._icon_cache[tab['favIconUrl']]
+            else:
+                glib_wrappers.async_get_url(tab['favIconUrl'], self._icon_ready_callback)
+                icon = window.icon
+        else:
+            icon = window.icon
+        return icon
 
     def _icon_ready_callback(self, url, contents):
-        print 'icon ready', url
-        self._icon_cache[url] = contents
+        input_stream = Gio.MemoryInputStream.new_from_data(contents, None)
+        pixbuf = Pixbuf.new_from_stream(input_stream, None)
+        self._icon_cache[url] = pixbuf
+	self._refresh_tree()
 
     def _enforce_expanded_mode(self):
         if self._expanded_mode:

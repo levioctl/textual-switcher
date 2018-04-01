@@ -176,9 +176,8 @@ class PointToPointPipesSwitch(object):
     def __init__(self, a, b):
         self._sides = dict(a=a, b=b)
         self._epoll = select.epoll()
-        log('A' + str(self._sides['a'].in_fd()))
+        log('registering...')
         self._epoll.register(self._sides['a'].in_fd())
-        log('B')
         self._epoll.register(self._sides['b'].in_fd())
 
     def run(self):
@@ -209,7 +208,7 @@ class PointToPointPipesSwitch(object):
             if event_type in (select.EPOLLIN, select.EPOLLRDNORM):
                 log('message ready from ' +  str(source) + '. Reading...')
                 content = os.read(fd, 4096)
-                log('Read done: ' + content)
+                log('Read done: ')
                 message = Message(content=content, source=source)
                 events.append(message)
             elif event_type == select.EPOLLHUP:

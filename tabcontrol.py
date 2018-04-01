@@ -2,6 +2,7 @@ import os
 import json
 import struct
 import os.path
+import unicodedata
 from gi.repository import GLib
 
 
@@ -43,7 +44,7 @@ class TabControl(object):
         in_pipe_filename = self.IN_PIPE_FILENAME % (pid,)
         try:
             self._in_fds_by_browser_pid[pid] = os.open(in_pipe_filename, os.O_RDONLY | os.O_NONBLOCK)
-        except Exception as ex:
+        except:
             raise ApiProxyNotReady(pid)
 
         out_pipe_filename = self.OUT_PIPE_FILENAME % (pid,)
@@ -62,8 +63,8 @@ class TabControl(object):
         if content is not None:
             tabs = json.loads(content)
             for tab in tabs:
-                import unicodedata
                 tab['title'] = unicodedata.normalize('NFKD', tab['title']).encode('ascii', 'ignore')
+            print 'receiving message from api proxy', len(tabs)
             self._update_tabs_callback(pid, tabs)
 
     @staticmethod
