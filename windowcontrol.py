@@ -7,6 +7,8 @@ import glib_wrappers
 
 
 class Window(object):
+    BROWSERS_WM_CLASSES = ["Navigator.Firefox"]
+
     def __init__(self):
         self.xid = None
         self.pid = None
@@ -14,6 +16,9 @@ class Window(object):
         self.title = None
         self.destkop_id = None
         self.hostname = None
+
+    def is_browser(self):
+        return self.wm_class in self.BROWSERS_WM_CLASSES
 
 
 class WindowControl(object):

@@ -31,8 +31,7 @@ KEYCODE_SPACE = 65
 
 class EntryWindow(Gtk.Window):
     WINDOW_TITLE = "Textual Switcher"
-    _COL_NR_ICON, _COL_NR_WINDOW_TITLE, _COL_NR_PID, _COL_NR_WM_CLASS, _COL_NR_WINDOW_ID, _COL_NR_SEARCH_TOKEN = range(6)
-    BROWSERS_WM_CLASSES = ["Navigator.Firefox"]
+    _COL_NR_ICON, _COL_NR_TITLE, _COL_NR_WINDOW_ID, _COL_NR_TAB_ID = range(4)
 
     def __init__(self):
         Gtk.Window.__init__(self, title=self.WINDOW_TITLE)
@@ -68,7 +67,7 @@ class EntryWindow(Gtk.Window):
         vbox.pack_start(label, False, True, 0)
 
     def _create_tree(self):
-        tree = Gtk.TreeStore(Pixbuf, str, int, str, int, str)
+        tree = Gtk.TreeStore(Pixbuf, str, int, int)
         tree.set_sort_func(1, self._compare_windows)
         tree.set_sort_column_id(1, Gtk.SortType.ASCENDING)
         return tree
@@ -92,7 +91,7 @@ class EntryWindow(Gtk.Window):
         treeview.connect("row-activated", self._window_selected_callback)
         treeview.connect("key-press-event", self._treeview_keypress)
         columns = {self._COL_NR_ICON: "Icon",
-                   self._COL_NR_WINDOW_TITLE: "Title"}
+                   self._COL_NR_TITLE: "Title"}
         for i, column_title in columns.iteritems():
             renderer = Gtk.CellRendererText()
             column = Gtk.TreeViewColumn(column_title, renderer, text=i)
@@ -147,14 +146,11 @@ class EntryWindow(Gtk.Window):
         return combined_title
 
     def _compare_windows(self, model, iter_a, iter_b, user_data):
-        window_a_row = model[iter_a]
-        title = window_a_row[self._COL_NR_WINDOW_TITLE]
-        wm_class = window_a_row[self._COL_NR_WM_CLASS]
-        window_a_score = self._get_score(title, wm_class)
-        window_a_row = model[iter_b]
-        title = window_a_row[self._COL_NR_WINDOW_TITLE]
-        wm_class = window_a_row[self._COL_NR_WM_CLASS]
-        window_b_score = self._get_score(title, wm_class)
+        window_a = self._windows[model[iter_a][self._COL_NR_WINDOW_ID]]
+        window_a_score = self._get_score(window_a.title, window_a.wm_class)
+        window_b = self._windows[model[iter_b][self._COL_NR_WINDOW_ID]]
+        window_b_score = self._get_score(window_b.title, window_b.wm_class)
+
         if window_a_score > window_b_score:
             return -1
         elif window_b_score > window_a_score:
@@ -162,29 +158,30 @@ class EntryWindow(Gtk.Window):
         return 0
 
     def _update_windows_listbox_callback(self, windows):
-        self._windows = windows
+        self._windows = {window.xid: window for window in windows}
         self._refresh_tree()
-        windows_other_than_me = [window for window in self._windows if window.xid != self._get_xid()]
+        windows_other_than_me = [window for window in windows if window.xid != self._get_xid()]
         self._async_list_tabs_from_windows_list(windows_other_than_me)
 
     def _refresh_tree(self):
         self._tree.clear()
-        for window in self._windows:
+        for window in self._windows.values():
             window_row_label = self._combine_title_and_wm_class(window.title, window.wm_class)
-            token = window.title + ' '.join(tab['title'] for tab in self._tabs.get(window.pid, []))
-            row_iter = self._tree.append(None, [window.icon, window_row_label, window.pid, window.wm_class, window.xid, token])
-            is_browser = window.pid in self._tabs
-            if is_browser:
+            NON_TAB_FLAG = -1
+            row = [window.icon, window_row_label, window.xid, NON_TAB_FLAG]
+            row_iter = self._tree.append(None, row)
+            if window.is_browser():
                 self._add_tabs_of_window_to_tree(window, row_iter)
         self._enforce_expanded_mode()
         self._select_first_window()
 
     def _add_tabs_of_window_to_tree(self, window, row_iter):
-        for tab in self._tabs[window.pid]:
-            icon = self._tabcontrol.get_tab_icon(tab)
-            if icon is None:
-                icon = window.icon
-            self._tree.append(row_iter, [icon, tab['title'], window.pid, None, window.xid, tab['title']])
+	if window.pid in self._tabs:
+            for tab in self._tabs[window.pid]:
+		icon = self._tabcontrol.get_tab_icon(tab)
+		if icon is None:
+                    icon = window.icon
+		self._tree.append(row_iter, [icon, tab['title'], window.xid, tab['id']])
 
     def _tab_icon_ready(self, url, icon):
 	self._refresh_tree()
@@ -196,7 +193,7 @@ class EntryWindow(Gtk.Window):
             self._treeview.collapse_all()
 
     def _async_list_tabs_from_windows_list(self, windows):
-        active_browser_pids = [window.pid for window in windows if window.wm_class in self.BROWSERS_WM_CLASSES]
+        active_browser_pids = [window.pid for window in windows if window.is_browser()]
         stale_browser_pids = [pid for pid in self._tabs if pid not in active_browser_pids]
         for pid in stale_browser_pids:
             del self._tabs[pid]
@@ -332,9 +329,6 @@ class EntryWindow(Gtk.Window):
             # Actual window list has changed since last reload
             self._async_list_windows()
 
-    def async_focus_on_window(self, window_id):
-        self._windowcontrol.async_focus_on_window(window_id)
-
     def _text_changed_callback(self, search_textbox):
         # A bit of nasty GTK hackery
         search_key = search_textbox.get_text()
@@ -378,14 +372,27 @@ class EntryWindow(Gtk.Window):
 
     def _filter_window_list_by_search_key(self, model, _iter, data):
         row = model[_iter]
-        title = row[self._COL_NR_SEARCH_TOKEN]
-        wm_class = row[self._COL_NR_WM_CLASS]
-        score = self._get_score(title, wm_class)
+        title = row[self._COL_NR_TITLE]
+        window_id = row[self._COL_NR_WINDOW_ID]
+        window = self._windows[window_id]
+        token = title
+        tab_id = row[self._COL_NR_TAB_ID]
+        is_tab = tab_id >= 0 and window.is_browser()
+        if window.pid in self._tabs:
+            if window.is_browser() and not is_tab:
+                tabs = self._tabs[window.pid]
+                token += " ".join(tab['title'] for tab in tabs)
+            elif is_tab:
+                matching = [tab for tab in self._tabs[window.pid] if tab['id'] == tab_id]
+                if matching:
+                    tab = matching[0]
+                    token = tab['title']
+        score = self._get_score(token, window.wm_class)
         return score > 30
 
     def _send_signal_to_selected_process(self, signal_type):
-        pid = self._get_value_of_selected_row(self._COL_NR_PID)
-        os.kill(pid, signal_type)
+        window = self._get_value_of_selected_row(self._COL_NR_DATA)
+        os.kill(window.pid, signal_type)
         self._async_list_windows()
 
 
