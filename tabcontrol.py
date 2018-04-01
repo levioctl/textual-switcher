@@ -28,16 +28,27 @@ class TabControl(object):
 
     def async_list_browser_tabs(self, active_browsers_pids):
         for pid in active_browsers_pids:
-            if not self._is_connected_to_api_proxy_for_browser_pid(pid):
-                try:
-                    self._in_id = self._connect_to_api_for_browser_pid(pid)
-                except ApiProxyNotReady:
-                    continue
-
+            is_connected = self._validate_connection_to_browser(pid)
+            if not is_connected:
+                continue
             self._activate_callback_for_one_message_from_api_proxy(pid)
             self.send_list_tabs_command(pid)
 
         self._clean_stale_descriptors(active_browsers_pids)
+
+    def async_move_to_tab(self, tab_id, pid):
+        is_connected = self._validate_connection_to_browser(pid)
+        if is_connected:
+            command = 'move_to_tab:%d' % (tab_id)
+            os.write(self._out_fds_by_browser_pid[pid], command)
+
+    def _validate_connection_to_browser(self, pid):
+        if not self._is_connected_to_api_proxy_for_browser_pid(pid):
+            try:
+                self._in_id = self._connect_to_api_for_browser_pid(pid)
+            except ApiProxyNotReady:
+                return False
+        return True
 
     def _activate_callback_for_one_message_from_api_proxy(self, pid):
         in_fd = self._in_fds_by_browser_pid[pid]

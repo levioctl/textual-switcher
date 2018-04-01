@@ -328,6 +328,11 @@ class EntryWindow(Gtk.Window):
         except subprocess.CalledProcessError:
             # Actual window list has changed since last reload
             self._async_list_windows()
+        tab_id = self._get_value_of_selected_row(self._COL_NR_TAB_ID)
+        is_tab = tab_id >= 0
+        if is_tab:
+            window = self._windows[window_id]
+            self._tabcontrol.async_move_to_tab(tab_id, window.pid)
 
     def _text_changed_callback(self, search_textbox):
         # A bit of nasty GTK hackery
@@ -377,7 +382,7 @@ class EntryWindow(Gtk.Window):
         window = self._windows[window_id]
         token = title
         tab_id = row[self._COL_NR_TAB_ID]
-        is_tab = tab_id >= 0 and window.is_browser()
+        is_tab = tab_id >= 0
         if window.pid in self._tabs:
             if window.is_browser() and not is_tab:
                 tabs = self._tabs[window.pid]

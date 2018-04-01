@@ -25,9 +25,10 @@ port.onMessage.addListener((message) => {
         console.log('sending tab list');
         port.postMessage(tabs);
       });
-  } else if (message.startsWith("switch_tab:")) {
-    tabId = parseInt(message.substring("switch_tab:".length, message.length - 1));
+  } else if (message.startsWith("move_to_tab:")) {
+    tabId = parseInt(message.substring("move_to_tab:".length));
     console.log("switch to tab " + tabId);
+    chrome.tabs.update(tabId, {active: true});
   }
 });
 

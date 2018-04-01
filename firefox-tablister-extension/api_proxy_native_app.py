@@ -208,7 +208,8 @@ class PointToPointPipesSwitch(object):
             if event_type in (select.EPOLLIN, select.EPOLLRDNORM):
                 log('message ready from ' +  str(source) + '. Reading...')
                 content = os.read(fd, 4096)
-                log('Read done: ')
+                if isinstance(source, SwitcherMessages):
+                    log('Message content:' + content)
                 message = Message(content=content, source=source)
                 events.append(message)
             elif event_type == select.EPOLLHUP:
