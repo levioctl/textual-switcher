@@ -3,7 +3,10 @@ import json
 import struct
 import os.path
 import unicodedata
-from gi.repository import GLib
+import expiringdict
+import glib_wrappers
+from gi.repository import GLib, Gio
+from gi.repository.GdkPixbuf import Pixbuf
 
 
 class ApiProxyNotReady(Exception): pass
@@ -13,12 +16,15 @@ class TabControl(object):
     API_PROXY_NAMED_PIPES_DIR = os.path.join('/run', 'user', str(os.getuid()), "textual-switcher-proxy")
     OUT_PIPE_FILENAME = os.path.join(API_PROXY_NAMED_PIPES_DIR, "textual_switcher_to_api_proxy_for_firefox_pid_%d")
     IN_PIPE_FILENAME = os.path.join(API_PROXY_NAMED_PIPES_DIR, "api_proxy_to_textual_switcher_for_firefox_pid_%d")
+    ONE_MONTH_IN_SECONDS = 60 * 60 * 24 * 7 * 4
 
-    def __init__(self, update_tabs_callback):
+    def __init__(self, update_tabs_callback, update_tab_icon_callback):
         self._in_fds_by_browser_pid = dict()
         self._out_fds_by_browser_pid = dict()
         self._update_tabs_callback = update_tabs_callback
+        self._update_tab_icon_callback = update_tab_icon_callback
         self._in_id = None
+        self._icon_cache = expiringdict.ExpiringDict(max_len=100, max_age_seconds=self.ONE_MONTH_IN_SECONDS)
 
     def async_list_browser_tabs(self, active_browsers_pids):
         for pid in active_browsers_pids:
@@ -65,7 +71,28 @@ class TabControl(object):
             for tab in tabs:
                 tab['title'] = unicodedata.normalize('NFKD', tab['title']).encode('ascii', 'ignore')
             print 'receiving message from api proxy', len(tabs)
+            self._populate_tabs_icons(tabs)
             self._update_tabs_callback(pid, tabs)
+
+    def _populate_tabs_icons(self, tabs):
+        for tab in tabs:
+            tab['icon'] = self.get_tab_icon(tab, fetch_if_missing=True)
+
+    def get_tab_icon(self, tab, fetch_if_missing=False):
+        icon = None
+        if 'favIconUrl' in tab and tab['favIconUrl'] is not None:
+            if tab['favIconUrl'] in self._icon_cache:
+                icon = self._icon_cache[tab['favIconUrl']]
+            else:
+                self._icon_cache[tab['favIconUrl']] = None
+                glib_wrappers.async_get_url(tab['favIconUrl'], self._tab_icon_ready)
+        return icon
+
+    def _tab_icon_ready(self, url, contents):
+        input_stream = Gio.MemoryInputStream.new_from_data(contents, None)
+        pixbuf = Pixbuf.new_from_stream(input_stream, None)
+        self._icon_cache[url] = pixbuf
+        self._update_tab_icon_callback(url, contents)
 
     @staticmethod
     def _read_from_api_proxy(fd):

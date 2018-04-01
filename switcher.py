@@ -3,11 +3,10 @@ import os
 import sys
 import signal
 import subprocess
-import expiringdict
 gi.require_version('GdkPixbuf', '2.0')
 gi.require_version('Gtk', '3.0')
 from gi.repository.GdkPixbuf import Pixbuf
-from gi.repository import Gtk, GdkX11, Gio
+from gi.repository import Gtk, GdkX11
 import pidfile
 import listfilter
 import tabcontrol
@@ -34,7 +33,6 @@ class EntryWindow(Gtk.Window):
     WINDOW_TITLE = "Textual Switcher"
     _COL_NR_ICON, _COL_NR_WINDOW_TITLE, _COL_NR_PID, _COL_NR_WM_CLASS, _COL_NR_WINDOW_ID, _COL_NR_SEARCH_TOKEN = range(6)
     BROWSERS_WM_CLASSES = ["Navigator.Firefox"]
-    ONE_MONTH_IN_SECONDS = 60 * 60 * 24 * 7 * 4
 
     def __init__(self):
         Gtk.Window.__init__(self, title=self.WINDOW_TITLE)
@@ -47,7 +45,7 @@ class EntryWindow(Gtk.Window):
         self._is_ctrl_pressed = False
         self._windowcontrol = windowcontrol.WindowControl()
         self._listfilter = listfilter.ListFilter()
-        self._tabcontrol = tabcontrol.TabControl(self._update_tabs_callback)
+        self._tabcontrol = tabcontrol.TabControl(self._update_tabs_callback, self._tab_icon_ready)
         glib_wrappers.register_signal(self._focus_on_me, signal.SIGHUP)
         self._set_window_properties()
         self._add_gui_components_to_window()
@@ -55,7 +53,6 @@ class EntryWindow(Gtk.Window):
         self._windows = None
         self._tabs = dict()
         self._expanded_mode = True
-        self._icon_cache = expiringdict.ExpiringDict(max_len=100, max_age_seconds=self.ONE_MONTH_IN_SECONDS)
 
     def _set_window_properties(self):
         self.set_size_request(500, 500)
@@ -103,7 +100,7 @@ class EntryWindow(Gtk.Window):
                 renderer = Gtk.CellRendererPixbuf()
                 column = Gtk.TreeViewColumn(column_title, renderer, pixbuf=i)
             treeview.append_column(column)
-        treeview.set_level_indentation(30)
+        treeview.set_level_indentation(20)
         return treeview
 
     def _create_treeview_scroll_wrapper(self):
@@ -184,24 +181,12 @@ class EntryWindow(Gtk.Window):
 
     def _add_tabs_of_window_to_tree(self, window, row_iter):
         for tab in self._tabs[window.pid]:
-            icon = self._get_icon_of_tab(tab, window)
+            icon = self._tabcontrol.get_tab_icon(tab)
+            if icon is None:
+                icon = window.icon
             self._tree.append(row_iter, [icon, tab['title'], window.pid, None, window.xid, tab['title']])
 
-    def _get_icon_of_tab(self, tab, window):
-        if 'favIconUrl' in tab:
-            if tab['favIconUrl'] in self._icon_cache:
-                icon = self._icon_cache[tab['favIconUrl']]
-            else:
-                glib_wrappers.async_get_url(tab['favIconUrl'], self._icon_ready_callback)
-                icon = window.icon
-        else:
-            icon = window.icon
-        return icon
-
-    def _icon_ready_callback(self, url, contents):
-        input_stream = Gio.MemoryInputStream.new_from_data(contents, None)
-        pixbuf = Pixbuf.new_from_stream(input_stream, None)
-        self._icon_cache[url] = pixbuf
+    def _tab_icon_ready(self, url, icon):
 	self._refresh_tree()
 
     def _enforce_expanded_mode(self):
