@@ -3,11 +3,13 @@ import os
 import sys
 import signal
 import subprocess
+import expiringdict
 gi.require_version('GdkPixbuf', '2.0')
 gi.require_version('Gtk', '3.0')
 from gi.repository.GdkPixbuf import Pixbuf
 from gi.repository import Gtk, GdkX11
 import pidfile
+import filecache
 import listfilter
 import tabcontrol
 import glib_wrappers
@@ -33,6 +35,7 @@ class EntryWindow(Gtk.Window):
     WINDOW_TITLE = "Textual Switcher"
     _COL_NR_ICON, _COL_NR_WINDOW_TITLE, _COL_NR_PID, _COL_NR_WM_CLASS, _COL_NR_WINDOW_ID, _COL_NR_SEARCH_TOKEN = range(6)
     BROWSERS_WM_CLASSES = ["Navigator.Firefox"]
+    ONE_MONTH_IN_SECONDS = 60 * 60 * 24 * 7 * 4
 
     def __init__(self):
         Gtk.Window.__init__(self, title=self.WINDOW_TITLE)
@@ -53,6 +56,7 @@ class EntryWindow(Gtk.Window):
         self._windows = None
         self._tabs = dict()
         self._expanded_mode = True
+        self._icon_cache = expiringdict.ExpiringDict(max_len=100, max_age_seconds=self.ONE_MONTH_IN_SECONDS)
 
     def _set_window_properties(self):
         self.set_size_request(500, 500)
@@ -174,10 +178,23 @@ class EntryWindow(Gtk.Window):
             row_iter = self._tree.append(None, [window.icon, window_row_label, window.pid, window.wm_class, window.xid, token])
             if window.pid in self._tabs:
                 for tab in self._tabs[window.pid]:
-                    self._tree.append(row_iter, [window.icon, tab['title'], window.pid, None, window.xid, tab['title']])
+                    icon = window.icon
+                    if 'favIconUrl' in tab:
+                        if tab['favIconUrl'] in self._icon_cache:
+                            icon = self._icon_cache[tab['favIconUrl']]
+                            icon = window.icon
+                        else:
+                            print 'fetching ', tab['favIconUrl']
+                            glib_wrappers.async_get_url(tab['favIconUrl'], self._icon_ready_callback)
+                            self._icon_cache[tab['favIconUrl']] = window.icon
+                    self._tree.append(row_iter, [icon, tab['title'], window.pid, None, window.xid, tab['title']])
         self._enforce_expanded_mode()
         self._select_first_window()
         self._async_list_tabs_from_windows_list(windows_other_than_me)
+
+    def _icon_ready_callback(self, url, contents):
+        print 'icon ready', url
+        self._icon_cache[url] = contents
 
     def _enforce_expanded_mode(self):
         if self._expanded_mode:

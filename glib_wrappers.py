@@ -1,4 +1,4 @@
-from gi.repository import GLib
+from gi.repository import GLib, Gio
 
 
 def register_signal(callback, signal_type):
@@ -34,3 +34,24 @@ def async_run_subprocess(command):
                          standard_output=True,
                          standard_error=True)
     return stdout
+
+
+def async_get_url(url, on_ready_callback):
+
+    cancellable = Gio.Cancellable()
+
+    def on_icon_ready_callback_wrapper(source_object, result, url):
+        try:
+            success, contents, etag = source_object.load_contents_finish(result)
+        except GLib.GError as e:
+            print("Error: " + e.message)
+        else:
+            if success:
+                on_ready_callback(url, contents)
+            else:
+                print("Error reading icon")
+        finally:
+            cancellable.reset()
+
+    file_ = Gio.File.new_for_uri(url)
+    file_.load_contents_async(cancellable, on_icon_ready_callback_wrapper, url)
