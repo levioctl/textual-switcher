@@ -11,6 +11,7 @@ then
 	PKG_MGR_CMD="sudo yum install -y"
 	PACKAGES="
 		dconf
+		pygobject3-devel
 	"
 elif [ "$OS" = "Ubuntu" ]
 then
