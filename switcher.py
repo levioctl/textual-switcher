@@ -391,12 +391,15 @@ class EntryWindow(Gtk.Window):
         window_id = row[self._COL_NR_WINDOW_ID]
         window = self._windows[window_id]
         token = title
+        if isinstance(token, str):
+            token = unicode(token, 'utf-8')
         tab_id = row[self._COL_NR_TAB_ID]
         is_tab = tab_id >= 0
         if window.pid in self._tabs:
             if window.is_browser() and not is_tab:
                 tabs = self._tabs[window.pid]
-                token += " ".join(tab['title'] for tab in tabs)
+                sep = unicode(' ', 'utf-8')
+                token += sep.join(tab['title'] for tab in tabs)
             elif is_tab:
                 matching = [tab for tab in self._tabs[window.pid] if tab['id'] == tab_id]
                 if matching:
