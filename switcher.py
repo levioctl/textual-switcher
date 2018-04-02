@@ -24,6 +24,7 @@ KEYCODE_L = 46
 KEYCODE_W = 25
 KEYCODE_C = 54
 KEYCODE_D = 40
+KEYCODE_H = 43
 KEYCODE_BACKSLASH = 22
 KEYCODE_BACKSPACE = 54
 KEYCODE_SPACE = 65
@@ -33,6 +34,16 @@ class EntryWindow(Gtk.Window):
     WINDOW_TITLE = "Textual Switcher"
     _COL_NR_ICON, _COL_NR_TITLE, _COL_NR_WINDOW_ID, _COL_NR_TAB_ID = range(4)
     ICON_SIZE = 25
+    FULL_HELP_TEXT = ("Ctrl+J: Down\n"
+                      "Ctrl+K: Up\n"
+                      "Ctrl+W/U: Empty search filter\n"
+                      "Ctrl+L: First (+reload)\n"
+                      "Ctrl+D: Last\n"
+                      "Ctrl+Backspace: SIGTERM selected\n"
+                      "Ctrl+\\: SIGKILL selected\n"
+                      "Ctrl+C: Hide\n"
+                      "Ctrl+H: Toggle Help")
+    SHORT_HELP_TEXT = "Ctrl+H: Toggle Help"
 
     def __init__(self):
         Gtk.Window.__init__(self, title=self.WINDOW_TITLE)
@@ -48,6 +59,8 @@ class EntryWindow(Gtk.Window):
         self._tabcontrol = tabcontrol.TabControl(self._update_tabs_callback, self._tab_icon_ready)
         glib_wrappers.register_signal(self._focus_on_me, signal.SIGHUP)
         self._set_window_properties()
+        self._help_label = None
+        self._help_label = self._create_help_label()
         self._add_gui_components_to_window()
         self._async_list_windows()
         self._windows = None
@@ -64,8 +77,7 @@ class EntryWindow(Gtk.Window):
         vbox.pack_start(self._search_textbox, expand=False, fill=True, padding=0)
         treeview_scroll_wrapper = self._create_treeview_scroll_wrapper()
         vbox.pack_start(treeview_scroll_wrapper, True, True, 0)
-        label = self._create_help_label()
-        vbox.pack_start(label, False, True, 0)
+        vbox.pack_start(self._help_label, False, True, 0)
 
     def _create_tree(self):
         tree = Gtk.TreeStore(Pixbuf, str, int, int)
@@ -109,17 +121,9 @@ class EntryWindow(Gtk.Window):
         scrollable_treeview.add(self._treeview)
         return scrollable_treeview
 
-    @staticmethod
-    def _create_help_label():
+    def _create_help_label(self):
         label = Gtk.Label()
-        label.set_text("Ctrl+J: Down\n"
-                       "Ctrl+K: Up\n"
-                       "Ctrl+W/U: Empty search filter\n"
-                       "Ctrl+L: First (+reload)\n"
-                       "Ctrl+D: Last\n"
-                       "Ctrl+Backspace: SIGTERM selected\n"
-                       "Ctrl+\\: SIGKILL selected\n"
-                       "Ctrl+C: Hide")
+        label.set_text(self.SHORT_HELP_TEXT)
         label.set_justify(Gtk.Justification.LEFT)
         return label
 
@@ -297,6 +301,8 @@ class EntryWindow(Gtk.Window):
             elif keycode == KEYCODE_SPACE:
                 self._expanded_mode = not self._expanded_mode
                 self._enforce_expanded_mode()
+            if keycode == KEYCODE_H:
+                self._toggle_help_text()
 
     def _treeview_keypress(self, *args):
         keycode = args[1].get_keycode()[1]
@@ -403,6 +409,12 @@ class EntryWindow(Gtk.Window):
         window = self._get_value_of_selected_row(self._COL_NR_DATA)
         os.kill(window.pid, signal_type)
         self._async_list_windows()
+
+    def _toggle_help_text(self):
+        if self._help_label.get_text() == self.SHORT_HELP_TEXT:
+            self._help_label.set_text(self.FULL_HELP_TEXT)
+        else:
+            self._help_label.set_text(self.SHORT_HELP_TEXT)
 
 
 def show_window(window):
