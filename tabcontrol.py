@@ -98,7 +98,12 @@ class TabControl(object):
 
     def _tab_icon_ready(self, url, contents):
         input_stream = Gio.MemoryInputStream.new_from_data(contents, None)
-        pixbuf = Pixbuf.new_from_stream(input_stream, None)
+        try:
+            pixbuf = Pixbuf.new_from_stream(input_stream, None)
+        except GLib.Error as ex:
+            if ex.message == 'Unrecognized image file format':
+                print "Error fetching icon for URL '%s': %s" % (url, ex.message)
+                return
         self._icon_cache[url] = pixbuf
         self._update_tab_icon_callback(url, contents)
 
