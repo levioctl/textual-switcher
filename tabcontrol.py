@@ -81,7 +81,6 @@ class TabControl(object):
             tabs = json.loads(content)
             for tab in tabs:
                 tab['title'] = unicodedata.normalize('NFKD', tab['title']).encode('ascii', 'ignore')
-            print 'receiving message from api proxy', len(tabs)
             self._populate_tabs_icons(tabs)
             self._update_tabs_callback(pid, tabs)
 

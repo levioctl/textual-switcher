@@ -5,7 +5,7 @@ import signal
 import subprocess
 gi.require_version('GdkPixbuf', '2.0')
 gi.require_version('Gtk', '3.0')
-from gi.repository.GdkPixbuf import Pixbuf
+from gi.repository.GdkPixbuf import Pixbuf, InterpType
 from gi.repository import Gtk, GdkX11
 import pidfile
 import listfilter
@@ -32,6 +32,7 @@ KEYCODE_SPACE = 65
 class EntryWindow(Gtk.Window):
     WINDOW_TITLE = "Textual Switcher"
     _COL_NR_ICON, _COL_NR_TITLE, _COL_NR_WINDOW_ID, _COL_NR_TAB_ID = range(4)
+    ICON_SIZE = 25
 
     def __init__(self):
         Gtk.Window.__init__(self, title=self.WINDOW_TITLE)
@@ -168,6 +169,7 @@ class EntryWindow(Gtk.Window):
         for window in self._windows.values():
             window_row_label = self._combine_title_and_wm_class(window.title, window.wm_class)
             NON_TAB_FLAG = -1
+            window.icon = window.icon.scale_simple(self.ICON_SIZE, self.ICON_SIZE, InterpType.BILINEAR)
             row = [window.icon, window_row_label, window.xid, NON_TAB_FLAG]
             row_iter = self._tree.append(None, row)
             if window.is_browser():
@@ -181,6 +183,8 @@ class EntryWindow(Gtk.Window):
 		icon = self._tabcontrol.get_tab_icon(tab)
 		if icon is None:
                     icon = window.icon
+                else:
+                    icon = icon.scale_simple(self.ICON_SIZE, self.ICON_SIZE, InterpType.BILINEAR)
 		self._tree.append(row_iter, [icon, tab['title'], window.xid, tab['id']])
 
     def _tab_icon_ready(self, url, icon):
