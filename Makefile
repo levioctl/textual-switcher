@@ -10,7 +10,7 @@ install: launch
 	sudo cp switcher.py windowcontrol.py listfilter.py tabcontrol.py pidfile.py glib_wrappers.py launch ${INSTALL_DIR}
 	touch ${LOCKFILE_PATH}
 	sudo chmod 777 ${LOCKFILE_PATH}
-	sudo pip install fuzzywuzzy expiringdict
+	sudo pip install fuzzywuzzy expiringdict python-Levenshtein
 	python apply-binding.py ${KEY_BINDING} ${KEY_COMBINATION}
 	@echo "Done. Press " ${KEY_COMBINATION} " to launch the switcher (you might need to restart for the binding to work)."
 
