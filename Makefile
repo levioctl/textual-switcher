@@ -7,10 +7,10 @@ KEY_BINDING="${INSTALL_DIR}/launch"
 install: launch
 	./install-prerequisites.sh
 	sudo mkdir -p ${INSTALL_DIR}
-	sudo cp switcher.py windowmanager.py listfilter.py launch ${INSTALL_DIR}
+	sudo cp switcher.py windowcontrol.py listfilter.py tabcontrol.py pidfile.py glib_wrappers.py launch ${INSTALL_DIR}
 	sudo touch ${LOCKFILE_PATH}
 	sudo chmod 777 ${LOCKFILE_PATH}
-	sudo pip install fuzzywuzzy,expiringdict
+	sudo pip install fuzzywuzzy expiringdict
 	python apply-binding.py ${KEY_BINDING} ${KEY_COMBINATION}
 	@echo "Done. Press " ${KEY_COMBINATION} " to launch the switcher (you might need to restart for the binding to work)."
 
