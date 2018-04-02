@@ -18,6 +18,7 @@ class ListFilter(object):
         if not self._search_key:
             return 100
         candidate = self._normalize(candidate)
-        if candidate in self._search_key or self._search_key in candidate:
+        search_key = unicode(self._search_key, 'utf-8')
+        if candidate in search_key or search_key in candidate:
             return 100
-        return fuzz.ratio(self._search_key, candidate)
+        return fuzz.ratio(search_key, candidate)

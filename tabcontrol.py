@@ -79,8 +79,6 @@ class TabControl(object):
         content = self._read_from_api_proxy(fd)
         if content is not None:
             tabs = json.loads(content)
-            for tab in tabs:
-                tab['title'] = unicodedata.normalize('NFKD', tab['title']).encode('ascii', 'ignore')
             self._populate_tabs_icons(tabs)
             self._update_tabs_callback(pid, tabs)
 
