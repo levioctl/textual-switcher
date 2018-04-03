@@ -387,8 +387,10 @@ class EntryWindow(Gtk.Window):
 
     def _filter_window_list_by_search_key(self, model, _iter, data):
         row = model[_iter]
-        title = row[self._COL_NR_TITLE]
         window_id = row[self._COL_NR_WINDOW_ID]
+        if window_id not in self._windows:
+            return False
+        title = row[self._COL_NR_TITLE]
         window = self._windows[window_id]
         token = title
         if isinstance(token, str):
@@ -409,7 +411,8 @@ class EntryWindow(Gtk.Window):
         return score > 30
 
     def _send_signal_to_selected_process(self, signal_type):
-        window = self._get_value_of_selected_row(self._COL_NR_DATA)
+        window_id = self._get_value_of_selected_row(self._COL_NR_WINDOW_ID)
+        window = self._windows[window_id]
         os.kill(window.pid, signal_type)
         self._async_list_windows()
 
