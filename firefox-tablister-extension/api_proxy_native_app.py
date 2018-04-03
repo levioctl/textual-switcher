@@ -177,8 +177,10 @@ class PointToPointPipesSwitch(object):
             source = self._sides['a'] if fd == self._sides['a'].in_fd() else self._sides['b']
             if event_type in (select.EPOLLIN, select.EPOLLRDNORM):
                 content = os.read(fd, 4096)
-                message = Message(content=content, source=source)
-                events.append(message)
+                raw_messages = [raw_message for raw_message in content.split(";") if raw_message]
+                for raw_message in raw_messages:
+                    message = Message(content=raw_message, source=source)
+                    events.append(message)
             elif event_type == select.EPOLLHUP:
                 events.append(Disconnection(side=source))
             else:

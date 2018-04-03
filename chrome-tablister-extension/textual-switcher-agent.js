@@ -1,7 +1,9 @@
 /*
 connect to the API proxy
 */
+console.log('starting proxy...')
 var port = chrome.runtime.connectNative("api_proxy_native_app");
+console.log('proxy is up.')
 
 /*
 Listen (and respond) to messages from the API proxy.

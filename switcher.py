@@ -201,11 +201,12 @@ class EntryWindow(Gtk.Window):
             self._treeview.collapse_all()
 
     def _async_list_tabs_from_windows_list(self, windows):
-        active_browser_pids = [window.pid for window in windows if window.is_browser()]
-        stale_browser_pids = [pid for pid in self._tabs if pid not in active_browser_pids]
+        active_browsers = [window for window in windows if window.is_browser()]
+        active_browsers_pids = [browser.pid for browser in active_browsers]
+        stale_browser_pids = [pid for pid in self._tabs if pid not in active_browsers_pids]
         for pid in stale_browser_pids:
             del self._tabs[pid]
-        self._tabcontrol.async_list_browser_tabs(active_browser_pids)
+        self._tabcontrol.async_list_browser_tabs(active_browsers)
 
     def _update_tabs_callback(self, pid, tabs):
         self._tabs[pid] = tabs

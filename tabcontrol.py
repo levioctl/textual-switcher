@@ -26,20 +26,20 @@ class TabControl(object):
         self._in_id = None
         self._icon_cache = expiringdict.ExpiringDict(max_len=100, max_age_seconds=self.ONE_MONTH_IN_SECONDS)
 
-    def async_list_browser_tabs(self, active_browsers_pids):
-        for pid in active_browsers_pids:
-            is_connected = self._validate_connection_to_browser(pid)
+    def async_list_browser_tabs(self, active_browsers):
+        for browser in active_browsers:
+            is_connected = self._validate_connection_to_browser(browser.pid)
             if not is_connected:
                 continue
-            self._activate_callback_for_one_message_from_api_proxy(pid)
-            self.send_list_tabs_command(pid)
+            self._activate_callback_for_one_message_from_api_proxy(browser.pid)
+            self.send_list_tabs_command(browser.pid)
 
-        self._clean_stale_descriptors(active_browsers_pids)
+        self._clean_stale_descriptors(active_browsers)
 
     def async_move_to_tab(self, tab_id, pid):
         is_connected = self._validate_connection_to_browser(pid)
         if is_connected:
-            command = 'move_to_tab:%d' % (tab_id)
+            command = 'move_to_tab:%d;' % (tab_id)
             os.write(self._out_fds_by_browser_pid[pid], command)
 
     def _validate_connection_to_browser(self, pid):
@@ -71,11 +71,11 @@ class TabControl(object):
             raise ApiProxyNotReady(pid)
 
     def _receive_message_from_api_proxy(self, fd, cond):
-        browser_pid = [pid for pid, in_fd in self._in_fds_by_browser_pid.iteritems() if fd == in_fd]
-        if not browser_pid or len(browser_pid) > 1:
-            print 'invalid browser pid', browser_pid
+        pid = [_pid for _pid, _in_fd in self._in_fds_by_browser_pid.iteritems() if fd == _in_fd]
+        if not pid or len(pid) > 1:
+            print 'invalid browser pid', pid
             return
-        browser_pid = browser_pid[0]
+        pid = pid[0]
         content = self._read_from_api_proxy(fd)
         if content is not None:
             tabs = json.loads(content)
@@ -120,12 +120,12 @@ class TabControl(object):
         return payload
 
     def send_list_tabs_command(self, pid):
-        os.write(self._out_fds_by_browser_pid[pid], 'list_tabs')
+        os.write(self._out_fds_by_browser_pid[pid], 'list_tabs;')
 
-    def _clean_stale_descriptors(self, active_browsers_pids):
-        stale_pids = [pid for pid in active_browsers_pids if
-                      pid not in self._in_fds_by_browser_pid and
-                      pid not in self._out_fds_by_browser_pid]
+    def _clean_stale_descriptors(self, active_browsers):
+        stale_pids = [browser.pid for browser in active_browsers if
+                      browser.pid not in self._in_fds_by_browser_pid and
+                      browser.pid not in self._out_fds_by_browser_pid]
 
         for pid in stale_pids:
             self._clean_fds_for_browser_pid(stale_pids, self._in_fds_by_browser_pid)

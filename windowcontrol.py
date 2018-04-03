@@ -5,7 +5,7 @@ import glib_wrappers
 
 
 class Window(object):
-    BROWSERS_WM_CLASSES = ["Navigator.Firefox"]
+    BROWSERS_WM_CLASSES = ["Navigator.Firefox", "google-chrome.Google-chrome"]
 
     def __init__(self):
         self.xid = None

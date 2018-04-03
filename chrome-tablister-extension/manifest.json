@@ -1,0 +1,16 @@
+{
+
+  "manifest_version": 2,
+  "name": "Textual Switcher Agent",
+  "version": "1.0",
+
+  "description": "Agent for supporting API commands (list tabs, switch to tab) from outside callers",
+
+  "background": {
+      "scripts": ["textual-switcher-agent.js"]
+  },
+  "permissions": ["nativeMessaging", "tabs"],
+
+  "browser_action": {
+  }
+}
