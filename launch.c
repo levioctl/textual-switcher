@@ -10,7 +10,7 @@
 #include <sys/types.h>
 
 
-static const char *PID_FILE_PATH_TEMPLATE = "/run/user/%s/textual_switcher.pid";
+static const char *PID_FILE_PATH_TEMPLATE = "/run/user/%d/textual_switcher.pid";
 static const char *PYTHON_EXE_PATH = "/usr/bin/python";
 static const char *SCRIPT_PATH = "/usr/share/textual-switcher/switcher.py";
 
@@ -28,7 +28,8 @@ void exec_switcher(char *pid_file_path)
 int main(void)
 {
     char pid_file_path[100];
-    snprintf((char*)&pid_file_path, sizeof(pid_file_path), PID_FILE_PATH_TEMPLATE, "1000");
+    const uid_t uid = getuid();
+    snprintf((char*)&pid_file_path, sizeof(pid_file_path), PID_FILE_PATH_TEMPLATE, uid);
     FILE *pid_file = fopen(pid_file_path, "r");
     char pid_file_content[20];
     int pid = 0;
