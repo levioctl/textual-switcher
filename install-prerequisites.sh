@@ -24,3 +24,4 @@ fi
 
 ${PKG_MGR_CMD} ${COMMON_PACKAGES} ${PACKAGES}
 
+sudo pip install fuzzywuzzy expiringdict python-Levenshtein
