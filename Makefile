@@ -9,7 +9,7 @@ install: launch
 	@./install-prerequisites.sh
 	@echo Installing switcher scripts...
 	@sudo mkdir -p ${INSTALL_DIR}
-	@sudo cp switcher.py windowcontrol.py listfilter.py tabcontrol.py pidfile.py glib_wrappers.py launch firefox-tablister-extension/api_proxy_native_app.py ${INSTALL_DIR}
+	@sudo cp switcher.py windowcontrol.py listfilter.py tabcontrol.py pidfile.py glib_wrappers.py launch browser-agent/api_proxy_native_app.py ${INSTALL_DIR}
 	@echo Creating PID file...
 	@touch ${LOCKFILE_PATH}
 	@sudo chmod 777 ${LOCKFILE_PATH}
@@ -26,17 +26,17 @@ launch: launch.c
 install_firefox_extension:
 	@echo Installing the Firefox extension...
 	@mkdir -p ~/.mozilla/extensions/{\ec8030f7-c20a-464f-9b0e-13a3a9e97384\}/
-	@cp firefox-tablister-extension/textual_switcher_agent-1.0-an+fx.xpi ~/.mozilla/extensions/\{ec8030f7-c20a-464f-9b0e-13a3a9e97384\}/{c60f517c-ccd3-4ec2-a289-0d9fe8e3cdf5}.xpi
+	@cp browser-agent/firefox-tablister-extension/textual_switcher_agent-1.0-an+fx.xpi ~/.mozilla/extensions/\{ec8030f7-c20a-464f-9b0e-13a3a9e97384\}/{c60f517c-ccd3-4ec2-a289-0d9fe8e3cdf5}.xpi
 	@echo Installing the API proxy manifest for the Firefox extension...
-	@mkdir ~/.mozilla/native-messaging-hosts/
-	@cp firefox-tablister-extension/api_proxy_native_app.json ~/.mozilla/native-messaging-hosts/
+	@mkdir -p ~/.mozilla/native-messaging-hosts/
+	@cp browser-agent/firefox-tablister-extension/api_proxy_native_app.json ~/.mozilla/native-messaging-hosts/
 
 .PHONY: install_chrome_extension
 install_chrome_extension:
 	@echo Installing the Chrome extension...
 	@mkdir -p /usr/share/google-chrome/extensions/
-	@sudo cp chrome-tablister-extension/preferences-file.json /usr/share/google-chrome/extensions/olhhapafmlnmdjdkoofnlmehgakgehad.json
+	@sudo cp browser-agent/chrome-tablister-extension/preferences-file.json /usr/share/google-chrome/extensions/olhhapafmlnmdjdkoofnlmehgakgehad.json
 	@sudo chmod +r /usr/share/google-chrome/extensions/olhhapafmlnmdjdkoofnlmehgakgehad.json
 	@echo Installing the API proxy manifest for the Chrome extension...
 	@mkdir -p ~/.config/google-chrome/NativeMessagingHosts/
-	@cp chrome-tablister-extension/api_proxy_native_app.json ~/.config/google-chrome/NativeMessagingHosts/
+	@cp browser-agent/chrome-tablister-extension/api_proxy_native_app.json ~/.config/google-chrome/NativeMessagingHosts/
