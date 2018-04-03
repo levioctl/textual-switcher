@@ -3,5 +3,5 @@
   "description": "An intermediary background application for passing API requests (list tabs, switch tab) from the main textual-switcher process to the firefox extention. Needed because Firefox extentions are only allowed to communicate with outside applications that they run.",
   "path": "/usr/share/textual-switcher/api_proxy_native_app.py",
   "type": "stdio",
-  "allowed_origins": [ "chrome-extension://olhhapafmlnmdjdkoofnlmehgakgehad/" ]
+  "allowed_origins": [ "chrome-extension://ebgonmbbfgmoiklncphoekdfkfeaenee/" ]
 }

@@ -2,6 +2,7 @@ KEY_COMBINATION="<Control><Alt>w"
 INSTALL_DIR=/usr/share/textual-switcher
 LOCKFILE_PATH="/run/user/$$UID/textual-switcher.pid"
 KEY_BINDING="${INSTALL_DIR}/launch"
+CHROME_EXTENSION_ID=ebgonmbbfgmoiklncphoekdfkfeaenee
 
 .PHONY: install
 install: launch
@@ -35,8 +36,8 @@ install_firefox_extension:
 install_chrome_extension:
 	@echo Installing the Chrome extension...
 	@mkdir -p /usr/share/google-chrome/extensions/
-	@sudo cp browser-agent/chrome-tablister-extension/preferences-file.json /usr/share/google-chrome/extensions/olhhapafmlnmdjdkoofnlmehgakgehad.json
-	@sudo chmod +r /usr/share/google-chrome/extensions/olhhapafmlnmdjdkoofnlmehgakgehad.json
+	@sudo cp browser-agent/chrome-tablister-extension/preferences-file.json /usr/share/google-chrome/extensions/${CHROME_EXTENSION_ID}.json
+	@sudo chmod +r /usr/share/google-chrome/extensions/${CHROME_EXTENSION_ID}.json
 	@echo Installing the API proxy manifest for the Chrome extension...
 	@mkdir -p ~/.config/google-chrome/NativeMessagingHosts/
 	@cp browser-agent/chrome-tablister-extension/api_proxy_native_app.json ~/.config/google-chrome/NativeMessagingHosts/
