@@ -4,6 +4,9 @@ An incremental search window switcher (text-based alternative for Alt+Tab). List
 
 Supported only on Linux with GNOME3-based window systems (GNOME3, Ubuntu Unity, Cinnamon).
 
+## Demo
+![Textual Switcher Demo](demo.gif)
+
 ## Usage
 Hit Ctrl+Alt+W to show the window, type some keyword to filter windows or browser tabs by titles, and hit Enter.
 
