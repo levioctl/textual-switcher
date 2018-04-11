@@ -12,7 +12,8 @@ install: launch
 	@sudo mkdir -p ${INSTALL_DIR}
 	@sudo cp switcher.py windowcontrol.py listfilter.py tabcontrol.py pidfile.py glib_wrappers.py launch browser-agent/api_proxy_native_app.py ${INSTALL_DIR}
 	@echo Creating PID file...
-	@touch ${LOCKFILE_PATH}
+	@sudo touch ${LOCKFILE_PATH}
+	@sudo chown $$USER:$$USER ${LOCKFILE_PATH}
 	@sudo chmod 777 ${LOCKFILE_PATH}
 	@echo Setting the keyboard shortcut...
 	@$(MAKE) install_firefox_extension
@@ -35,7 +36,8 @@ install_firefox_extension:
 .PHONY: install_chrome_extension
 install_chrome_extension:
 	@echo Installing the Chrome extension...
-	@mkdir -p /usr/share/google-chrome/extensions/
+	@sudo mkdir -p /usr/share/google-chrome/extensions/
+	@sudo chown $$USER:$$USER /usr/share/google-chrome/extensions/
 	@sudo cp browser-agent/chrome-tablister-extension/preferences-file.json /usr/share/google-chrome/extensions/${CHROME_EXTENSION_ID}.json
 	@sudo chmod +r /usr/share/google-chrome/extensions/${CHROME_EXTENSION_ID}.json
 	@echo Installing the API proxy manifest for the Chrome extension...
