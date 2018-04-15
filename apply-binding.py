@@ -23,7 +23,6 @@ def set_paths(window_manager):
 
 def dconf_write(path, value):
     cmd = ["dconf", "write", path, value]
-    print "Setting {} to {}".format(path, value)
     subprocess.check_output(cmd)
 
 
@@ -54,9 +53,7 @@ def does_binding_exist(name):
 
 def set_binding(cmd, key_combination, window_manager):
     new_binding_path = "{}/{}".format(CUSTOM_KEYB_PATH, BINDING_NAME)
-    if does_binding_exist(BINDING_NAME):
-        print "A key binding list-name entry already exists."
-    else:
+    if not does_binding_exist(BINDING_NAME):
         bindings = get_binding_list()
         if window_manager in ('gnome', 'unity'):
             new_binding_path_with_slash = "{}/".format(new_binding_path)
@@ -67,7 +64,6 @@ def set_binding(cmd, key_combination, window_manager):
             assert False, "invalid window manager"
         dconf_write(BINDING_LIST_PATH, str(bindings))
 
-    print "Setting key bindings."
     binding_values = dict(name=BINDING_NAME,
                           binding=key_combination,
                           command=cmd)

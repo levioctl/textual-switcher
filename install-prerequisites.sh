@@ -11,7 +11,7 @@ COMMON_PACKAGES="
 "
 if [ "$OS" = "Fedora" ]
 then
-	PKG_MGR_CMD="sudo yum install -y"
+	PKG_MGR_CMD="sudo dnf install -y"
 	PACKAGES="
 		dconf
 		pygobject3-devel
@@ -28,8 +28,8 @@ else
 	exit 1;
 fi
 
-echo $OS
+echo Installing required packages... >> installation.log 2>&1
+${PKG_MGR_CMD} ${COMMON_PACKAGES} ${PACKAGES} >> installation.log 2>&1
 
-${PKG_MGR_CMD} ${COMMON_PACKAGES} ${PACKAGES}
-
-sudo pip install -r requirements.txt
+echo Installing required python libraries... >> installation.log 2>&1
+sudo pip install -r requirements.txt >> installation.log 2>&1
