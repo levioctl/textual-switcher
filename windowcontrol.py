@@ -1,6 +1,9 @@
 import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk
 gi.require_version('Wnck', '3.0')
 from gi.repository import Wnck, GLib
+
 import glib_wrappers
 
 
@@ -31,17 +34,10 @@ class WindowControl(object):
             windows = self.parse_wlist_output(output)
             icons = self._get_icons()
             for window in windows:
-                window.icon = self._get_window_icon(window, icons)
+                window.icon = icons.get(window.xid, None)
             callback(windows)
 
         io.add_watch(GLib.IO_IN | GLib.IO_HUP, list_windows_callback)
-
-    @staticmethod
-    def _get_window_icon(window, icons):
-        icon = icons.get(window.xid, None)
-        if icon is None:
-            print 'No icon for window %d' % (window.xid,)
-        return icon
 
     @staticmethod
     def focus_on_window(window_id):
@@ -80,6 +76,9 @@ class WindowControl(object):
 
     def _get_icons(self):
         screen = Wnck.Screen.get_default()
+        # The following is needed in order to wait for windows to ready
+        while Gtk.events_pending():
+            Gtk.main_iteration()
         screen.force_update()
         icons = {w.get_xid(): w.get_icon() for w in screen.get_windows()}
         return icons
