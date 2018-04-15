@@ -1,8 +1,9 @@
 KEY_COMBINATION="<Control><Alt>w"
 INSTALL_DIR=/usr/share/textual-switcher
-LOCKFILE_PATH="/run/user/$$UID/textual-switcher.pid"
+LOCKFILE_PATH=${XDG_RUNTIME_DIR}/textual-switcher.pid
 KEY_BINDING="${INSTALL_DIR}/launch"
 CHROME_EXTENSION_ID=ebgonmbbfgmoiklncphoekdfkfeaenee
+
 
 .PHONY: install
 install: launch
@@ -12,9 +13,7 @@ install: launch
 	@sudo mkdir -p ${INSTALL_DIR}
 	@sudo cp switcher.py windowcontrol.py listfilter.py tabcontrol.py pidfile.py glib_wrappers.py launch browser-agent/api_proxy_native_app.py ${INSTALL_DIR}
 	@echo Creating PID file...
-	@sudo touch ${LOCKFILE_PATH}
-	@sudo chown $$USER:$$USER ${LOCKFILE_PATH}
-	@sudo chmod 777 ${LOCKFILE_PATH}
+	@touch ${LOCKFILE_PATH}
 	@echo Setting the keyboard shortcut...
 	@$(MAKE) install_firefox_extension
 	@$(MAKE) install_chrome_extension
