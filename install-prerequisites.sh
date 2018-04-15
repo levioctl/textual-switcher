@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Exit on first error
+set -e
+
 # Determine package manager
 OS=`grep ^NAME /etc/os-release | cut -d '=' -f 2`
 OS=`sed -e 's/^"//' -e 's/"$//' <<<"$OS"`
@@ -21,6 +24,8 @@ else
 	echo "Error: Package manager was not found."
 	exit 1;
 fi
+
+echo $OS
 
 ${PKG_MGR_CMD} ${COMMON_PACKAGES} ${PACKAGES}
 
