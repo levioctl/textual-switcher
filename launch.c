@@ -10,7 +10,7 @@
 #include <sys/types.h>
 
 
-static const char *PID_FILE_PATH_TEMPLATE = "/run/user/%d/textual_switcher.pid";
+static const char *PID_FILE_PATH_TEMPLATE = "/run/user/%d/textual-switcher.pid";
 static const char *PYTHON_EXE_PATH = "/usr/bin/python";
 static const char *SCRIPT_PATH = "/usr/share/textual-switcher/switcher.py";
 
