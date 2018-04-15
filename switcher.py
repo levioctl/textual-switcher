@@ -173,7 +173,8 @@ class EntryWindow(Gtk.Window):
         for window in self._windows.values():
             window_row_label = self._combine_title_and_wm_class(window.title, window.wm_class)
             NON_TAB_FLAG = -1
-            window.icon = window.icon.scale_simple(self.ICON_SIZE, self.ICON_SIZE, InterpType.BILINEAR)
+            if window.icon is not None:
+                window.icon = window.icon.scale_simple(self.ICON_SIZE, self.ICON_SIZE, InterpType.BILINEAR)
             row = [window.icon, window_row_label, window.xid, NON_TAB_FLAG]
             row_iter = self._tree.append(None, row)
             if window.is_browser():
