@@ -1,22 +1,22 @@
 import os
 import sys
+import argparse
 import subprocess
 
 
 BINDING_NAME = "textual-switcher"
 CUSTOM_KEYB_PATH = ""
 BINDING_LIST_PATH = ""
-WM = ''
 DEFAULT_DESKTOP = "gnome"
+SUPPORTED_WINDOW_MANAGERS = ['unity', 'gnome', 'cinnamon']
 
-def set_paths():
+def set_paths(window_manager):
     global BINDING_LIST_PATH
     global CUSTOM_KEYB_PATH
-    global WM
-    if WM == 'cinnamon':
+    if window_manager == 'cinnamon':
         BINDING_LIST_PATH = "/org/cinnamon/desktop/keybindings/custom-list"
         CUSTOM_KEYB_PATH = "/org/cinnamon/desktop/keybindings/custom-keybindings"
-    if WM in ('gnome', 'unity'):
+    if window_manager in ('gnome', 'unity'):
         BINDING_LIST_PATH = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings"
         CUSTOM_KEYB_PATH = BINDING_LIST_PATH
 
@@ -52,17 +52,19 @@ def does_binding_exist(name):
     return name in names
 
 
-def set_binding(cmd, key_combination):
+def set_binding(cmd, key_combination, window_manager):
     new_binding_path = "{}/{}".format(CUSTOM_KEYB_PATH, BINDING_NAME)
     if does_binding_exist(BINDING_NAME):
         print "A key binding list-name entry already exists."
     else:
         bindings = get_binding_list()
-        if WM == 'gnome':
+        if window_manager in ('gnome', 'unity'):
             new_binding_path_with_slash = "{}/".format(new_binding_path)
             bindings.append(new_binding_path_with_slash)
-        elif WM == 'cinnamon':
+        elif window_manager == 'cinnamon':
             bindings.append(new_binding_path)
+        else:
+            assert False, "invalid window manager"
         dconf_write(BINDING_LIST_PATH, str(bindings))
 
     print "Setting key bindings."
@@ -75,21 +77,30 @@ def set_binding(cmd, key_combination):
         dconf_write(binding_path, value)
 
 
+def detect_window_manager():
+    window_manager = os.getenv("XDG_CURRENT_DESKTOP", None)
+    if window_manager is None:
+        return None
+    window_manager = window_manager.lower()
+    if 'cinnamon' in window_manager:
+        window_manager = 'cinnamon'
+    if window_manager not in SUPPORTED_WINDOW_MANAGERS:
+        return None
+    return window_manager
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("command")
+    parser.add_argument("key_combination")
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print "Usage: python {} command binding".format(__file__)
-        print "Example binding: <Primary><Alt>w"
-        print sys.argv
-        sys.exit(1)
-    cmd = sys.argv[1]
-    key_combination = sys.argv[2]
-    wm = os.getenv("XDG_CURRENT_DESKTOP", DEFAULT_DESKTOP)
-    if 'gnome' in wm.lower():
-        WM = 'gnome'
-    elif 'cinnamon' in wm.lower():
-        WM = 'cinnamon'
-    else:
+    args = parse_args()
+    window_manager = detect_window_manager()
+    if window_manager is None:
         print "Unsupported desktop environment: {}".format(wm)
         sys.exit(1)
-    set_paths()
-    set_binding(cmd, key_combination)
+    set_paths(window_manager)
+    set_binding(args.command, args.key_combination, window_manager)
