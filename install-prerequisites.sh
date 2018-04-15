@@ -19,7 +19,10 @@ then
 elif [ "$OS" = "Ubuntu" ]
 then
 	PKG_MGR_CMD="sudo apt-get install -y"
-	PACKAGES="dconf-cli"
+	PACKAGES="
+		dconf-cli
+		python-gi
+	"
 else
 	echo "Error: Package manager was not found."
 	exit 1;
