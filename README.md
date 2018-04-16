@@ -2,7 +2,7 @@
 
 An incremental search window switcher (text-based alternative for Alt+Tab). Lists windows and browser tabs.
 
-Supported only on Linux with GNOME3-based window systems (GNOME3, Ubuntu Unity, Cinnamon).
+Supports only Linux with GNOME3-based window systems (GNOME3, Ubuntu Unity, Cinnamon).
 
 ## Demo
 ![Textual Switcher Demo](demo.gif)
