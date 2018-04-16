@@ -22,6 +22,18 @@ then
 	PACKAGES="
 		dconf-cli
 		python-gi
+		python-pip
+		libpython-dev
+	"
+elif [ "$OS" = "Linux Mint" ]
+then
+	PKG_MGR_CMD="sudo apt-get install -y"
+	PACKAGES="
+		dconf-cli
+		python-gi
+                build-essential
+		python-pip
+		libpython-dev
 	"
 else
 	echo "Error: Package manager was not found."
@@ -32,4 +44,5 @@ echo Installing required packages... >> installation.log 2>&1
 ${PKG_MGR_CMD} ${COMMON_PACKAGES} ${PACKAGES} >> installation.log 2>&1
 
 echo Installing required python libraries... >> installation.log 2>&1
+sudo pip install setuptools >> installation.log 2>&1
 sudo pip install -r requirements.txt >> installation.log 2>&1

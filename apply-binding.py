@@ -22,6 +22,10 @@ def set_paths(window_manager):
 
 
 def dconf_write(path, value):
+    if isinstance(value, str):
+        value = "'{}'".format(value)
+    elif isinstance(value, list):
+        value = str(value)
     cmd = ["dconf", "write", path, value]
     subprocess.check_output(cmd)
 
@@ -34,7 +38,7 @@ def dconf_read(path):
 
 def get_binding_list():
     bindings = dconf_read(BINDING_LIST_PATH)
-    bindings = bindings.strip()
+    bindings = bindings.strip().strip("'")
     if not bindings:
         return []
     bindings = bindings[bindings.index("["):] # Deal with '@as'
@@ -45,32 +49,32 @@ def get_binding_list():
     return bindings
 
 
-def does_binding_exist(name):
+def add_binding_to_list_entry(new_binding_path, window_manager):
+    if window_manager in ('gnome', 'unity'):
+        entry_value = "{}/".format(new_binding_path)
+    elif window_manager == 'cinnamon':
+        entry_value = os.path.basename(new_binding_path)
+    else:
+        assert False, "invalid window manager"
     bindings = get_binding_list()
-    names = [binding.strip(" /").split("/")[-1] for binding in bindings]
-    return name in names
+    if entry_value not in bindings:
+        bindings.append(entry_value)
+        dconf_write(BINDING_LIST_PATH, bindings)
+
+
+def set_binding_entry(binding_values, entry_path, window_manager):
+    for name, value in binding_values.iteritems():
+        binding_path = "{}/{}".format(entry_path, name)
+        dconf_write(binding_path, value)
 
 
 def set_binding(cmd, key_combination, window_manager):
-    new_binding_path = "{}/{}".format(CUSTOM_KEYB_PATH, BINDING_NAME)
-    if not does_binding_exist(BINDING_NAME):
-        bindings = get_binding_list()
-        if window_manager in ('gnome', 'unity'):
-            new_binding_path_with_slash = "{}/".format(new_binding_path)
-            bindings.append(new_binding_path_with_slash)
-        elif window_manager == 'cinnamon':
-            bindings.append(new_binding_path)
-        else:
-            assert False, "invalid window manager"
-        dconf_write(BINDING_LIST_PATH, str(bindings))
-
+    entry_path = "{}/{}".format(CUSTOM_KEYB_PATH, BINDING_NAME)
+    add_binding_to_list_entry(entry_path, window_manager)
     binding_values = dict(name=BINDING_NAME,
                           binding=key_combination,
                           command=cmd)
-    for name, value in binding_values.iteritems():
-        binding_path = "{}/{}".format(new_binding_path, name)
-        value = "'{}'".format(value)
-        dconf_write(binding_path, value)
+    set_binding_entry(binding_values, entry_path, window_manager)
 
 
 def detect_window_manager():
@@ -92,11 +96,19 @@ def parse_args():
     return parser.parse_args()
 
 
+def canonize_binding(binding, window_manager):
+    if window_manager in ('cinnamon',):
+        binding = binding.replace('<Control>', '<Primary>')
+        binding = [binding]
+    return binding
+
+
 if __name__ == "__main__":
     args = parse_args()
     window_manager = detect_window_manager()
     if window_manager is None:
-        print "Unsupported desktop environment: {}".format(wm)
+        print "Unsupported desktop environment: {}".format(window_manager)
         sys.exit(1)
+    key_combination = canonize_binding(args.key_combination, window_manager)
     set_paths(window_manager)
-    set_binding(args.command, args.key_combination, window_manager)
+    set_binding(args.command, key_combination, window_manager)
