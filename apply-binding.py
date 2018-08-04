@@ -84,6 +84,8 @@ def detect_window_manager():
     window_manager = window_manager.lower()
     if 'cinnamon' in window_manager:
         window_manager = 'cinnamon'
+    if window_manager == 'ubuntu:gnome':
+        window_manager = 'gnome'
     if window_manager not in SUPPORTED_WINDOW_MANAGERS:
         return None
     return window_manager
