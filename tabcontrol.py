@@ -25,16 +25,40 @@ class TabControl(object):
         self._update_tab_icon_callback = update_tab_icon_callback
         self._in_id = None
         self._icon_cache = expiringdict.ExpiringDict(max_len=100, max_age_seconds=self.ONE_MONTH_IN_SECONDS)
+        self._retry_counter_by_browser = dict()
+        self._is_updated_by_browser = dict()
 
-    def async_list_browser_tabs(self, active_browsers):
+    def async_list_browsers_tabs(self, active_browsers):
         for browser in active_browsers:
-            is_connected = self._validate_connection_to_browser(browser.pid)
-            if not is_connected:
-                continue
-            self._activate_callback_for_one_message_from_api_proxy(browser.pid)
-            self.send_list_tabs_command(browser.pid)
+            self._retry_counter_by_browser[browser.pid] = 10
+            self._is_updated_by_browser[browser.pid] = False
+            GLib.timeout_add(100, self._async_list_browser_tabs, browser)
 
-        self._clean_stale_descriptors(active_browsers)
+    def _async_list_browser_tabs(self, browser):
+        whether_to_repeat = True
+
+        if self._is_updated_by_browser[browser.pid]:
+            whether_to_repeat = False
+        else:
+            # Decrement left retries counters
+            self._retry_counter_by_browser[browser.pid] = max(0, self._retry_counter_by_browser[browser.pid] - 1)
+
+            # Eliminate browsers with no retries left
+            if self._retry_counter_by_browser[browser.pid] > 0:
+
+                # Validate connection
+                is_connected = self._validate_connection_to_browser(browser.pid)
+                if is_connected:
+                    # Schedule tablist in thread
+                    self._activate_callback_for_one_message_from_api_proxy(browser)
+                    self.send_list_tabs_command(browser.pid)
+
+                self._clean_stale_descriptors([browser])
+
+            else:
+                whether_to_repeat = False
+
+        return whether_to_repeat
 
     def async_move_to_tab(self, tab_id, pid):
         is_connected = self._validate_connection_to_browser(pid)
@@ -50,9 +74,9 @@ class TabControl(object):
                 return False
         return True
 
-    def _activate_callback_for_one_message_from_api_proxy(self, pid):
-        in_fd = self._in_fds_by_browser_pid[pid]
-        GLib.io_add_watch(in_fd, GLib.IO_IN, self._receive_message_from_api_proxy)
+    def _activate_callback_for_one_message_from_api_proxy(self, browser):
+        in_fd = self._in_fds_by_browser_pid[browser.pid]
+        GLib.io_add_watch(in_fd, GLib.IO_IN, self._receive_message_from_api_proxy, browser)
 
     def _is_connected_to_api_proxy_for_browser_pid(self, pid):
         return pid in self._in_fds_by_browser_pid and pid in self._out_fds_by_browser_pid
@@ -61,26 +85,39 @@ class TabControl(object):
         in_pipe_filename = self.IN_PIPE_FILENAME % (pid,)
         try:
             self._in_fds_by_browser_pid[pid] = os.open(in_pipe_filename, os.O_RDONLY | os.O_NONBLOCK)
-        except:
+        except Exception as ex:
+            print('raise ApiProxyNotReady1 {}'.format(str(ex)))
             raise ApiProxyNotReady(pid)
 
         out_pipe_filename = self.OUT_PIPE_FILENAME % (pid,)
         try:
             self._out_fds_by_browser_pid[pid] = os.open(out_pipe_filename, os.O_WRONLY | os.O_NONBLOCK)
-        except:
+        except Exception as ex:
+            print('raise ApiProxyNotReady2 {}'.format(str(ex)))
             raise ApiProxyNotReady(pid)
 
-    def _receive_message_from_api_proxy(self, fd, cond):
+    def _receive_message_from_api_proxy(self, fd, cond, browser):
         pid = [_pid for _pid, _in_fd in self._in_fds_by_browser_pid.iteritems() if fd == _in_fd]
         if not pid or len(pid) > 1:
-            print 'invalid browser pid', pid
+            print('invalid browser pid', pid)
             return
         pid = pid[0]
-        content = self._read_from_api_proxy(fd)
+        try:
+            content = self._read_from_api_proxy(fd)
+        except Exception as ex:
+            print(str(ex))
+            return
+
         if content is not None:
-            tabs = json.loads(content)
+            try:
+                tabs = json.loads(content)
+            except:
+                print('cannot load json:')
+                print(content)
+                return
             self._populate_tabs_icons(tabs)
             self._update_tabs_callback(pid, tabs)
+            self._is_updated_by_browser[browser.pid] = True
 
     def _populate_tabs_icons(self, tabs):
         for tab in tabs:
@@ -93,31 +130,41 @@ class TabControl(object):
                 icon = self._icon_cache[tab['favIconUrl']]
             else:
                 self._icon_cache[tab['favIconUrl']] = None
-                glib_wrappers.async_get_url(tab['favIconUrl'], self._tab_icon_ready)
+                url = tab["favIconUrl"]
+                for image_prefix in ("data:image/x-icon;base64,",
+                                     "data:image/png;base64,"):
+                    if url.startswith(image_prefix):
+                        image = url[len(image_prefix):]
+                        import base64
+                        image = base64.b64decode(image)
+                        self._tab_icon_ready(url, image)
+                        break
+                else:
+                    glib_wrappers.async_get_url(url, self._tab_icon_ready)
         return icon
 
     def _tab_icon_ready(self, url, contents):
-        input_stream = Gio.MemoryInputStream.new_from_data(contents, None)
         try:
+            input_stream = Gio.MemoryInputStream.new_from_data(contents, None)
             pixbuf = Pixbuf.new_from_stream(input_stream, None)
-        except GLib.Error as ex:
-            if ex.message == 'Unrecognized image file format':
-                print "Error fetching icon for URL '%s': %s" % (url, ex.message)
-                return
+        except Exception as ex:
+            print "Error fetching icon for URL '%s': %s" % (url, ex.message)
+            return
         self._icon_cache[url] = pixbuf
         self._update_tab_icon_callback(url, contents)
 
     @staticmethod
     def _read_from_api_proxy(fd):
-        message = os.read(fd, 4096)
-        raw_length = message[:4]
+        raw_length = os.read(fd, 4)
         if not raw_length:
             return None
-        length = struct.unpack('@I', raw_length)[0]
-        payload = message[4:4 + length]
-        if len(payload) != length:
-            return None
-        return payload
+        size_left_to_read = struct.unpack('@I', raw_length)[0]
+        message = ""
+        while size_left_to_read > 0:
+            addition = os.read(fd, size_left_to_read)
+            message += addition
+            size_left_to_read -= len(addition)
+        return message
 
     def send_list_tabs_command(self, pid):
         os.write(self._out_fds_by_browser_pid[pid], 'list_tabs;')

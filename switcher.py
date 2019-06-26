@@ -207,7 +207,7 @@ class EntryWindow(Gtk.Window):
         stale_browser_pids = [pid for pid in self._tabs if pid not in active_browsers_pids]
         for pid in stale_browser_pids:
             del self._tabs[pid]
-        self._tabcontrol.async_list_browser_tabs(active_browsers)
+        self._tabcontrol.async_list_browsers_tabs(active_browsers)
 
     def _update_tabs_callback(self, pid, tabs):
         self._tabs[pid] = tabs
@@ -249,10 +249,10 @@ class EntryWindow(Gtk.Window):
 
     def _select_previous_item(self):
         model, _iter = self._get_selected_row()
-        current = model[_iter]
+        original = current = model[_iter]
         while current.previous is None and current.parent != None:
             current = current.parent
-        if current.previous is not None:
+        if original == current and current.previous is not None:
             current = current.previous
             child = self._get_child_of_row(current)
             current_has_children = child is not None
@@ -434,7 +434,7 @@ def show_window(window):
 if __name__ == "__main__":
     # Not using an argument parser to not waste time in latency
     if len(sys.argv) != 2:
-        print "Please specify the PID file as an argument"
+        print("Please specify the PID file as an argument")
         sys.exit(1)
 
     pid_filepath = sys.argv[1]
