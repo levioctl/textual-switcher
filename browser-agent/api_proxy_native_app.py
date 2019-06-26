@@ -17,19 +17,6 @@ class ExtensionMessages(object):
     def in_fd():
         return sys.stdin.fileno()
 
-    # Read a message from stdin and decode it.
-    @staticmethod
-    def parse_message(message):
-        messages = list()
-        while message:
-            raw_length = message[:4]
-            message = message[4:]
-            if not raw_length:
-                sys.exit(0)
-            message_length = struct.unpack('@I', raw_length)[0]
-            message = message_length[4:4 + raw_length]
-            messages.append(message)
-
     # Encode a message for transmission, given its content.
     @staticmethod
     def _encode_message(message_content):
@@ -37,14 +24,15 @@ class ExtensionMessages(object):
         encoded_length = struct.pack('@I', len(encoded_content))
         return {'length': encoded_length, 'content': encoded_content}
 
-
     # Send a message to stdout.
     @classmethod
     def send_message(cls, message):
-        message = cls._encode_message(message)
-        sys.stdout.write(message['length'])
-        sys.stdout.write(message['content'])
-        sys.stdout.flush()
+        messaegs = message.split(';')
+        for message in messaegs:
+            message = cls._encode_message(message)
+            sys.stdout.write(message['length'])
+            sys.stdout.write(message['content'])
+            sys.stdout.flush()
 
 
 class SwitcherMessages(object):
@@ -62,7 +50,7 @@ class SwitcherMessages(object):
         self._connect()
 
     def get_message(self):
-        data = os.read(self._in_fifo, 4096)
+        data = os.read(self._in_fifo, 2 ** 10)
         if len(data) == 0:
             # Writer closed
             return None
@@ -176,11 +164,9 @@ class PointToPointPipesSwitch(object):
         for fd, event_type in self._epoll.poll():
             source = self._sides['a'] if fd == self._sides['a'].in_fd() else self._sides['b']
             if event_type in (select.EPOLLIN, select.EPOLLRDNORM):
-                content = os.read(fd, 4096)
-                raw_messages = [raw_message for raw_message in content.split(";") if raw_message]
-                for raw_message in raw_messages:
-                    message = Message(content=raw_message, source=source)
-                    events.append(message)
+                content = os.read(fd, 2 ** 10)
+                message = Message(content=content, source=source)
+                events.append(message)
             elif event_type == select.EPOLLHUP:
                 events.append(Disconnection(side=source))
             else:

@@ -44,7 +44,7 @@ install_firefox_extension:
 install_chrome_extension:
 	@echo Installing the Chrome extension... >> installation.log 2>&1
 	@sudo mkdir -p /usr/share/google-chrome/extensions/
-	@sudo chown $$USER:$$USER /usr/share/google-chrome/extensions/
+	@sudo chmod 777 /usr/share/google-chrome/extensions/
 	@sudo cp browser-agent/chrome-tablister-extension/preferences-file.json /usr/share/google-chrome/extensions/${CHROME_EXTENSION_ID}.json
 	@sudo chmod +r /usr/share/google-chrome/extensions/${CHROME_EXTENSION_ID}.json
 	@echo Installing the API proxy manifest for the Chrome extension... >> installation.log 2>&1
