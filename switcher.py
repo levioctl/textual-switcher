@@ -3,8 +3,8 @@ import os
 import sys
 import signal
 import subprocess
-gi.require_version('GdkPixbuf', '2.0')
 gi.require_version('Gtk', '3.0')
+gi.require_version('GdkPixbuf', '2.0')
 from gi.repository.GdkPixbuf import Pixbuf, InterpType
 from gi.repository import Gtk, GdkX11
 import pidfile

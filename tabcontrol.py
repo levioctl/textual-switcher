@@ -1,12 +1,16 @@
 import os
 import json
 import struct
+import logging
 import os.path
 import unicodedata
 import expiringdict
 import glib_wrappers
 from gi.repository import GLib, Gio
 from gi.repository.GdkPixbuf import Pixbuf
+
+
+logger = logging.getLogger(__file__)
 
 
 class ApiProxyNotReady(Exception): pass
@@ -129,6 +133,7 @@ class TabControl(object):
             if tab['favIconUrl'] in self._icon_cache:
                 icon = self._icon_cache[tab['favIconUrl']]
             else:
+                # Async read icon from URL by scheduling the ready callback
                 self._icon_cache[tab['favIconUrl']] = None
                 url = tab["favIconUrl"]
                 for image_prefix in ("data:image/x-icon;base64,",
@@ -155,16 +160,26 @@ class TabControl(object):
 
     @staticmethod
     def _read_from_api_proxy(fd):
+        # Read length
         raw_length = os.read(fd, 4)
         if not raw_length:
+            logger.error("Invalid raw length")
             return None
-        size_left_to_read = struct.unpack('@I', raw_length)[0]
-        message = ""
-        while size_left_to_read > 0:
-            addition = os.read(fd, size_left_to_read)
-            message += addition
-            size_left_to_read -= len(addition)
-        return message
+        length = struct.unpack('=I', raw_length)[0]
+
+        # Read payload
+        payload = os.read(fd, length)
+        if len(payload) != length:
+            # Just a warning because this happens, not sure why
+            logger.warning("read length: {}, read payload length {}".format(length,
+                                                                            len(payload)))
+        # Decode
+        try:
+            payload = payload.decode("utf-8")
+        except Exception as ex:
+            logger.error("Could not decode incoming payload: {}".format(payload))
+
+        return payload
 
     def send_list_tabs_command(self, pid):
         os.write(self._out_fds_by_browser_pid[pid], 'list_tabs;')
