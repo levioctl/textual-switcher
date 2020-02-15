@@ -1,5 +1,6 @@
 import os
 import json
+import base64
 import struct
 import logging
 import os.path
@@ -8,6 +9,19 @@ import expiringdict
 import glib_wrappers
 from gi.repository import GLib, Gio
 from gi.repository.GdkPixbuf import Pixbuf
+
+
+KNOWN_ICON_TYPES = (
+                    "x-icon",
+                    "png",
+                    "gif",
+                    "x-iconbase64",
+                    "pngbase64",
+                    )
+KNOWN_BASE64_ICON_TYPES = (
+                           "x-iconbase64",
+                           "pngbase64",
+                           )
 
 
 logger = logging.getLogger(__file__)
@@ -136,15 +150,32 @@ class TabControl(object):
                 # Async read icon from URL by scheduling the ready callback
                 self._icon_cache[tab['favIconUrl']] = None
                 url = tab["favIconUrl"]
-                for image_prefix in ("data:image/x-icon;base64,",
-                                     "data:image/png;base64,"):
-                    if url.startswith(image_prefix):
-                        image = url[len(image_prefix):]
-                        import base64
-                        image = base64.b64decode(image)
+
+                for image_prefix in KNOWN_ICON_TYPES:
+                    # Try parsing image as inline
+                    image = None
+                    is_base64 = False
+
+                    # Populate `image` and `is_base64`
+                    if url.startswith("data:image/{},".format(image_prefix)):
+                        image_type, image = url.split('/', 1)[1].split(',', 1)
+                        if image_type in KNOWN_BASE64_ICON_TYPES:
+                            is_base64 = True
+                    elif url.startswith("data:image/{};".format(image_prefix)):
+                        _, parameter_and_image = url.split('/', 1)[1].split(';', 1)
+
+                        if parameter_and_image.startswith("base64,"):
+                            image = parameter_and_image.split(',', 1)[1]
+                            is_base64 = True
+
+                    # Act on `image` and `base64`
+                    if image is not None:
+                        if is_base64:
+                            image = base64.b64decode(image)
                         self._tab_icon_ready(url, image)
                         break
                 else:
+                    # Parse image as URL
                     glib_wrappers.async_get_url(url, self._tab_icon_ready)
         return icon
 
