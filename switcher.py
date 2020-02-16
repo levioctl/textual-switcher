@@ -378,6 +378,7 @@ class EntryWindow(Gtk.Window):
                 child_row = model[child_iter]
                 child_title = child_row[self._COL_NR_TITLE]
                 child_score = self._listfilter.get_candidate_score(child_title)
+                #print((child_title, child_score))
                 if best_row_so_far is None or child_score > best_score_so_far:
                     best_row_so_far = child_row
                     best_score_so_far = child_score
@@ -387,7 +388,7 @@ class EntryWindow(Gtk.Window):
             if best_row_so_far is not None:
                 window = self._windows[selected_window_id]
                 window_score = self._get_score(window.title, window.wm_class)
-                if child_score >= window_score:
+                if best_score_so_far >= window_score:
                     # Selct tab
                     self._treeview.set_cursor(best_row_so_far.path)
                 else:

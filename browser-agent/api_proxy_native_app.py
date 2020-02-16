@@ -10,6 +10,16 @@ import json
 import errno
 import select
 import struct
+import traceback
+
+
+logfile = open("/tmp/native-app-{}.log".format(os.getpid()), "w")
+import time
+
+
+def log(msg):
+    logfile.write("{}: {}\n".format(time.ctime(), msg))
+    logfile.flush()
 
 
 class ExtensionMessages(object):
@@ -27,6 +37,7 @@ class ExtensionMessages(object):
     # Send a message to stdout.
     @classmethod
     def send_message(cls, message):
+        log("sending to app over pipe: {} bytes".format(len(message)))
         messaegs = message.split(';')
         for message in messaegs:
             message = cls._encode_message(message)
@@ -50,14 +61,22 @@ class SwitcherMessages(object):
         self._connect()
 
     def get_message(self):
-        data = os.read(self._in_fifo, 2 ** 10)
+        data = os.read(self._in_fifo, 2 ** 20)
         if len(data) == 0:
             # Writer closed
             return None
         return data
 
     def send_message(self, message):
-        nr_bytes = os.write(self._out_fifo, message)
+        log("sending to switcher over pipe: {} bytes".format(len(message)))
+        try:
+            nr_bytes = os.write(self._out_fifo, message)
+        except OSError as ex:
+            if ex.errno == 32:
+                raise DisconnectionException()
+            else:
+                log("cannot write to switcher, broken pipe (probably disconnected)")
+                raise
 
     def in_fd(self):
         return self._in_fifo
@@ -123,13 +142,13 @@ class Message(object):
         self.source = source
 
 
-class Disconnection(Exception):
+class DisconnectionEvent:
     def __init__(self, side):
         self.side = side
 
 
 class DisconnectionException(Exception):
-    def __init__(self, side, *args, **kwargs):
+    def __init__(self, side=None, *args, **kwargs):
         self.side = side
         super(DisconnectionException, self).__init__(*args, **kwargs)
 
@@ -145,7 +164,7 @@ class PointToPointPipesSwitch(object):
         while True:
             events = self._wait_for_events()
             for event in events:
-                if isinstance(event, Disconnection):
+                if isinstance(event, DisconnectionEvent):
                     raise DisconnectionException(event.side)
                 elif isinstance(event, Message):
                     self._route_message(event)
@@ -153,22 +172,22 @@ class PointToPointPipesSwitch(object):
                     assert False
 
     def _route_message(self, message):
-        if message.source == self._sides['a']:
-            destination = self._sides['b']
-        else:
-            destination = self._sides['a']
-        destination.send_message(message.content)
+        destination = self._sides['b'] if message.source == self._sides['a'] else self._sides['a']
+        try:
+            destination.send_message(message.content)
+        except DisconnectionException:
+            raise DisconnectionException(side=destination)
 
     def _wait_for_events(self):
         events = list()
         for fd, event_type in self._epoll.poll():
             source = self._sides['a'] if fd == self._sides['a'].in_fd() else self._sides['b']
             if event_type in (select.EPOLLIN, select.EPOLLRDNORM):
-                content = os.read(fd, 2 ** 10)
+                content = os.read(fd, 2 ** 20)
                 message = Message(content=content, source=source)
                 events.append(message)
             elif event_type == select.EPOLLHUP:
-                events.append(Disconnection(side=source))
+                events.append(DisconnectionEvent(side=source))
             else:
                 continue
 
@@ -181,20 +200,31 @@ def main():
     messageSwitch = PointToPointPipesSwitch(a=extension_messages, b=switcher_messages)
     run_another_iteration = True
     while run_another_iteration:
+        log("Running another iteration")
         run_another_iteration = False
         try:
             messageSwitch.run()
         except DisconnectionException as ex:
+            log("Disconnected. Handling...")
             if ex.side == switcher_messages:
+                log("Switcher disconnected. Reconnecting...")
                 ex.side.reconnect()
+                log("Reconnected.")
                 messageSwitch = PointToPointPipesSwitch(a=extension_messages, b=switcher_messages)
                 run_another_iteration = True
         except Exception as ex:
-            pass
+            log("Exception: {}".format(ex))
+            tb = "".join(traceback.format_exc())
+            log(tb)
         finally:
+            log("Cleaning up...")
             if not run_another_iteration:
                 switcher_messages.cleanup()
+            log("Clean up done.")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as ex:
+        log("Exception while reconnecting: {}".format(ex))
