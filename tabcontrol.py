@@ -30,6 +30,66 @@ logger = logging.getLogger(__file__)
 class ApiProxyNotReady(Exception): pass
 
 
+class ApiProxyFdContentionTryAgainLater(Exception): pass
+
+
+class NativeAppReader:
+    def __init__(self, fd):
+        self.fd = fd
+        self.payload = ""
+        self.message_length = None
+
+    def read(self):
+        # Read length if new payload
+        if self.message_length is None:
+            raw_length = os.read(self.fd, 4)
+            if not raw_length:
+                logger.error("Invalid raw length")
+                return None
+            self.message_length = struct.unpack('=I', raw_length)[0]
+
+        # Read payload
+        read_counter = 0
+        while len(self.payload) < self.message_length:
+            nr_bytes_left_to_read = self.message_length - len(self.payload)
+            print('{}: reading content of length {}'.format(self.fd, nr_bytes_left_to_read))
+            try:
+                chunk = os.read(self.fd, nr_bytes_left_to_read)
+            except IOError as ex:
+                if ex.errno == 32:
+                    print("will try again later")
+                    raise ApiProxyFdContentionTryAgainLater
+                else:
+                    raise
+            except OSError as ex:
+                if ex.errno == 11:
+                    print("will try again later (2)")
+                    raise ApiProxyFdContentionTryAgainLater
+                else:
+                    raise
+            print('{}: received: {}'.format(self.fd, len(chunk)))
+            self.payload += chunk
+            print('Payload is now {}. Target: {}'.format(len(self.payload), self.message_length))
+
+            read_counter += 1
+            if read_counter >= 9999:
+                # Just a warning because this happens sometimes, not sure why
+                logger.warning("Infinite read from pipe. Dismissing message")
+                return None
+
+        # Decode
+        try:
+            self.payload = self.payload.decode("utf-8")
+        except Exception as ex:
+            logger.error("Could not decode incoming payload: {}".format(self.payload))
+
+        result = self.payload
+        self.payload = ""
+        self.message_length = None
+        return result
+
+
+
 class TabControl(object):
     API_PROXY_NAMED_PIPES_DIR = os.path.join('/run', 'user', str(os.getuid()), "textual-switcher-proxy")
     OUT_PIPE_FILENAME = os.path.join(API_PROXY_NAMED_PIPES_DIR, "textual_switcher_to_api_proxy_for_firefox_pid_%d")
@@ -52,7 +112,7 @@ class TabControl(object):
             self._is_updated_by_browser[browser.pid] = False
             GLib.timeout_add(100, self._async_list_browser_tabs, browser)
 
-    def _async_list_browser_tabs(self, browser):
+    def _async_list_browser_tabs(self, browser, is_new_list_tab_request=True):
         whether_to_repeat = True
 
         if self._is_updated_by_browser[browser.pid]:
@@ -69,7 +129,8 @@ class TabControl(object):
                 if is_connected:
                     # Schedule tablist in thread
                     self._activate_callback_for_one_message_from_api_proxy(browser)
-                    self.send_list_tabs_command(browser.pid)
+                    if is_new_list_tab_request:
+                        self.send_list_tabs_command(browser.pid)
 
                 self._clean_stale_descriptors([browser])
 
@@ -93,7 +154,7 @@ class TabControl(object):
         return True
 
     def _activate_callback_for_one_message_from_api_proxy(self, browser):
-        in_fd = self._in_fds_by_browser_pid[browser.pid]
+        in_fd = self._in_fds_by_browser_pid[browser.pid].fd
         GLib.io_add_watch(in_fd, GLib.IO_IN, self._receive_message_from_api_proxy, browser)
 
     def _is_connected_to_api_proxy_for_browser_pid(self, pid):
@@ -102,7 +163,8 @@ class TabControl(object):
     def _connect_to_api_for_browser_pid(self, pid):
         in_pipe_filename = self.IN_PIPE_FILENAME % (pid,)
         try:
-            self._in_fds_by_browser_pid[pid] = os.open(in_pipe_filename, os.O_RDONLY | os.O_NONBLOCK)
+            fd = os.open(in_pipe_filename, os.O_RDONLY | os.O_NONBLOCK)
+            self._in_fds_by_browser_pid[pid] = NativeAppReader(fd)
         except Exception as ex:
             print('raise ApiProxyNotReady1 {}'.format(str(ex)))
             raise ApiProxyNotReady(pid)
@@ -115,23 +177,27 @@ class TabControl(object):
             raise ApiProxyNotReady(pid)
 
     def _receive_message_from_api_proxy(self, fd, cond, browser):
-        pid = [_pid for _pid, _in_fd in self._in_fds_by_browser_pid.iteritems() if fd == _in_fd]
+        pid = [_pid for _pid, native_app_reader in self._in_fds_by_browser_pid.iteritems() if fd == native_app_reader.fd]
         if not pid or len(pid) > 1:
             print('invalid browser pid', pid)
             return
         pid = pid[0]
+        content = None
         try:
-            content = self._read_from_api_proxy(fd)
+            content = self._in_fds_by_browser_pid[pid].read()
+        except ApiProxyFdContentionTryAgainLater:
+            print("scheduling another list tabs")
+            self._async_list_browser_tabs(browser, is_new_list_tab_request=False)
         except Exception as ex:
             print(str(ex))
+            print(type(ex))
             return
 
         if content is not None:
             try:
                 tabs = json.loads(content)
             except:
-                print('cannot load json:')
-                print(content)
+                print('cannot load content of size {}:'.format(len(content)))
                 return
             self._populate_tabs_icons(tabs)
             self._update_tabs_callback(pid, tabs)
@@ -189,29 +255,6 @@ class TabControl(object):
         self._icon_cache[url] = pixbuf
         self._update_tab_icon_callback(url, contents)
 
-    @staticmethod
-    def _read_from_api_proxy(fd):
-        # Read length
-        raw_length = os.read(fd, 4)
-        if not raw_length:
-            logger.error("Invalid raw length")
-            return None
-        length = struct.unpack('=I', raw_length)[0]
-
-        # Read payload
-        payload = os.read(fd, length)
-        if len(payload) != length:
-            # Just a warning because this happens, not sure why
-            logger.warning("read length: {}, read payload length {}".format(length,
-                                                                            len(payload)))
-        # Decode
-        try:
-            payload = payload.decode("utf-8")
-        except Exception as ex:
-            logger.error("Could not decode incoming payload: {}".format(payload))
-
-        return payload
-
     def send_list_tabs_command(self, pid):
         os.write(self._out_fds_by_browser_pid[pid], 'list_tabs;')
 
@@ -221,7 +264,8 @@ class TabControl(object):
                       browser.pid not in self._out_fds_by_browser_pid]
 
         for pid in stale_pids:
-            self._clean_fds_for_browser_pid(stale_pids, self._in_fds_by_browser_pid)
+            self._clean_fds_for_browser_pid(stale_pids, {fd: native_app_reader for
+                                                         fd, native_app_reader in self._in_fds_by_browser_pid.items()})
             self._clean_fds_for_browser_pid(stale_pids, self._out_fds_by_browser_pid)
 
     def _clean_fds_for_browser_pid(self, browser_pids, pid_to_fd):
