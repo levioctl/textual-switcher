@@ -347,7 +347,6 @@ class EntryWindow(Gtk.Window):
             self._tabcontrol.async_move_to_tab(tab_id, window.pid)
 
     def _text_changed_callback(self, search_textbox):
-        # A bit of nasty GTK hackery
         search_key = search_textbox.get_text()
         self._listfilter.update_search_key(search_key)
         self._treefilter.refilter()
@@ -369,12 +368,33 @@ class EntryWindow(Gtk.Window):
             if row[self._COL_NR_WINDOW_ID] == selected_window_id:
                 break
             _iter = model.iter_next(_iter)
-        # If row of selected window was found, choose the first tab (first child)
+
+        # Select child row that best matches the search key (if matches more than the window row)
         if row != None:
             child_iter = model.iter_children(row.iter)
-            if child_iter is not None:
+            best_row_so_far = None
+            best_score_so_far = None
+            while child_iter is not None:
                 child_row = model[child_iter]
-                self._treeview.set_cursor(child_row.path)
+                child_title = child_row[self._COL_NR_TITLE]
+                child_score = self._listfilter.get_candidate_score(child_title)
+                if best_row_so_far is None or child_score > best_score_so_far:
+                    best_row_so_far = child_row
+                    best_score_so_far = child_score
+                child_iter = model.iter_next(child_iter)
+
+            # Select the child row if better score than window
+            if best_row_so_far is not None:
+                window = self._windows[selected_window_id]
+                window_score = self._get_score(window.title, window.wm_class)
+                if child_score >= window_score:
+                    # Selct tab
+                    self._treeview.set_cursor(best_row_so_far.path)
+                else:
+                    # Select window
+                    self._select_first_window()
+            else:
+                self._select_first_window()
 
     def _select_first_window(self):
         if len(self._tree):
