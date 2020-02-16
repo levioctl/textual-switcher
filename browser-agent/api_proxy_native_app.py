@@ -7,6 +7,7 @@
 import os
 import sys
 import json
+import time
 import errno
 import select
 import struct
@@ -162,7 +163,17 @@ class PointToPointPipesSwitch(object):
 
     def run(self):
         while True:
-            events = self._wait_for_events()
+            while True:
+                try:
+                    events = self._wait_for_events()
+                except IOError as ex:
+                    if ex.errno == 4:
+                        log("interrupted poll. will retry again in 5 seconds...")
+                        time.sleep(5)
+                        continue
+                    else:
+                        raise ex
+                break
             for event in events:
                 if isinstance(event, DisconnectionEvent):
                     raise DisconnectionException(event.side)
