@@ -40,9 +40,9 @@ else
 	exit 1;
 fi
 
-echo Installing required packages... >> installation.log 2>&1
-${PKG_MGR_CMD} ${COMMON_PACKAGES} ${PACKAGES} >> installation.log 2>&1
+echo Installing required packages...
+${PKG_MGR_CMD} ${COMMON_PACKAGES} ${PACKAGES}
 
-echo Installing required python libraries... >> installation.log 2>&1
-sudo pip install setuptools >> installation.log 2>&1
-sudo pip install -r requirements.txt >> installation.log 2>&1
+echo Installing required python libraries...
+sudo pip install setuptools
+sudo pip install -r requirements.txt
