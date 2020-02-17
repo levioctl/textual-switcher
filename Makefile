@@ -5,31 +5,33 @@ KEY_BINDING="${INSTALL_DIR}/launch"
 CHROME_EXTENSION_ID=ebgonmbbfgmoiklncphoekdfkfeaenee
 
 .PHONY: install
-install:
-	@echo 'Installing... (see log in "installation.log")'.
-	@$(MAKE) requirements >> installation.log 2>&1
-	@$(MAKE) launch >> installation.log 2>&1
-	@echo Installing switcher scripts... >> installation.log 2>&1
-	@sudo mkdir -p ${INSTALL_DIR}
-	@sudo cp switcher.py windowcontrol.py listfilter.py tabcontrol.py pidfile.py glib_wrappers.py launch browser-agent/api_proxy_native_app.py ${INSTALL_DIR}
+install: launch
+	@echo 'Installing requirements... (see log in "requirements.log")'.
+	@$(MAKE) requirements >> requirements.log 2>&1
+	@echo 'Installing switcher... (see log in installation.log)'
+	@sudo mkdir -p ${INSTALL_DIR} >> installation.log 2>&1
+	@sudo cp switcher.py windowcontrol.py listfilter.py tabcontrol.py pidfile.py glib_wrappers.py launch browser-agent/api_proxy_native_app.py ${INSTALL_DIR} >> installation.log 2>&1
 	@echo Creating PID file... >> installation.log 2>&1
 	@touch ${LOCKFILE_PATH}
 	@echo Setting the keyboard shortcut... >> installation.log 2>&1
 	@$(MAKE) install_firefox_extension >> installation.log 2>&1
 	@$(MAKE) install_chrome_extension >> installation.log 2>&1
-	@python apply-binding.py ${KEY_BINDING} ${KEY_COMBINATION}
+	@python apply-binding.py ${KEY_BINDING} ${KEY_COMBINATION} >> installation.log 2>&1
 	@echo Installation complete.
 	@echo
+	@echo '*****************************************************************************************'
 	@echo Note:
-	@echo "* Activate: "${KEY_COMBINATION}"  (a reboot might be needed)."
-	@echo "* You might need to approve the Firefox extension (in Firefox) for support of listing Firefox tabs."
+	@echo '* Activation:' ${KEY_COMBINATION}
+	@echo '* Please restart firefox and approve the extension in order to enable listing tabs.'
+	@echo '*****************************************************************************************'
 
 launch: launch.c
-	@gcc -Wall -Werror -pedantic -std=c99 launch.c -o launch
+	@echo 'Building... (see log in "build.log")'.
+	@gcc -Wall -Werror -pedantic -std=c99 launch.c -o launch >> build.log 2>&1
 
 .PHONY: requirements
 requirements:
-	@./install-prerequisites.sh
+	./install-prerequisites.sh
 
 .PHONY: install_firefox_extension
 install_firefox_extension:
