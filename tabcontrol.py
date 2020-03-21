@@ -4,6 +4,7 @@ import base64
 import struct
 import logging
 import os.path
+import traceback
 import unicodedata
 import expiringdict
 import glib_wrappers
@@ -33,165 +34,161 @@ class ApiProxyNotReady(Exception): pass
 class ApiProxyFdContentionTryAgainLater(Exception): pass
 
 
-class NativeAppReader:
-    def __init__(self, fd):
-        self.fd = fd
+class BrowserTabLister(object):
+    API_PROXY_NAMED_PIPES_DIR = os.path.join('/run', 'user', str(os.getuid()), "textual-switcher-proxy")
+    OUT_PIPE_FILENAME = os.path.join(API_PROXY_NAMED_PIPES_DIR, "textual_switcher_to_api_proxy_for_firefox_pid_%d")
+    IN_PIPE_FILENAME = os.path.join(API_PROXY_NAMED_PIPES_DIR, "api_proxy_to_textual_switcher_for_firefox_pid_%d")
+
+    def __init__(self, pid, update_tabs_callback):
+        self.pid = pid
+        self._is_updated = True
+        self._update_tabs_callback = update_tabs_callback
+        self._is_new_list_tab_request = True
+        self._nr_retries_left = 1000
+
+        in_pipe_filename = self.IN_PIPE_FILENAME % (pid,)
+        try:
+            self.in_fd = os.open(in_pipe_filename, os.O_RDONLY | os.O_NONBLOCK)
+        except Exception as ex:
+            print('Failed to in out FD for browser PID {}: {}'.format(pid, str(ex)))
+            raise ApiProxyNotReady(pid)
+
+        out_pipe_filename = self.OUT_PIPE_FILENAME % (pid,)
+        try:
+            self._out_fd = os.open(out_pipe_filename, os.O_WRONLY | os.O_NONBLOCK)
+        except Exception as ex:
+            print('Failed to open out FD for browser PID {}: {}'.format(pid, str(ex)))
+            print("Cleaning in fd...")
+            try:
+                os.close(in_fd)
+            except:
+                print("Failed closing the in FD")
+            raise ApiProxyNotReady(pid)
+
         self.payload = ""
         self.message_length = None
+        self._read_leftovers_from_prev_runs__in_pipe()
+
+    def _read_leftovers_from_prev_runs__in_pipe(self):
+        while True:
+            try:
+                os.read(self.in_fd, 1024)
+            except OSError as ex:
+                if ex.errno == 11:
+                    print("No more data in pipe")
+                    break
+                else:
+                    print("Unexpecter error while draining pipe from previous runs:")
+                    print(traceback.format_exc())
+            except:
+                print("Unexpecter error while draining pipe from previous runs:")
+                print(traceback.format_exc())
 
     def read(self):
         # Read length if new payload
         if self.message_length is None:
-            raw_length = os.read(self.fd, 4)
+            print("{}: Reading length of 4 bytes".format(self.in_fd))
+            raw_length = os.read(self.in_fd, 4)
             if not raw_length:
-                logger.error("Invalid raw length")
+                print("Invalid raw length")
                 return None
             self.message_length = struct.unpack('=I', raw_length)[0]
+            print("{}: New length: {} bytes".format(self.in_fd, self.message_length))
 
         # Read payload
         read_counter = 0
         while len(self.payload) < self.message_length:
             nr_bytes_left_to_read = self.message_length - len(self.payload)
-            print('{}: reading content of length {}'.format(self.fd, nr_bytes_left_to_read))
             try:
-                chunk = os.read(self.fd, nr_bytes_left_to_read)
+                print('{}: reading 1024 bytes ({} left)'.format(self.in_fd, nr_bytes_left_to_read))
+                chunk = os.read(self.in_fd, min(nr_bytes_left_to_read, 1024))
             except IOError as ex:
                 if ex.errno == 32:
-                    print("will try again later")
+                    print("{}: will try again later".format(self.in_fd))
                     raise ApiProxyFdContentionTryAgainLater
                 else:
                     raise
             except OSError as ex:
                 if ex.errno == 11:
-                    print("will try again later (2)")
+                    print("{}: will try again later (2)".format(self.in_fd))
                     raise ApiProxyFdContentionTryAgainLater
                 else:
                     raise
-            print('{}: received: {}'.format(self.fd, len(chunk)))
             self.payload += chunk
-            print('Payload is now {}. Target: {}'.format(len(self.payload), self.message_length))
 
             read_counter += 1
-            if read_counter >= 9999:
+            if read_counter >= 99999:
                 # Just a warning because this happens sometimes, not sure why
-                logger.warning("Infinite read from pipe. Dismissing message")
+                print("{}: Infinite read from pipe. Dismissing message".format(self.in_fd))
                 return None
 
         # Decode
         try:
             self.payload = self.payload.decode("utf-8")
         except Exception as ex:
-            logger.error("Could not decode incoming payload: {}".format(self.payload))
+            print("{}: Could not decode incoming payload: {}".format(self.in_fd, self.payload))
 
         result = self.payload
         self.payload = ""
         self.message_length = None
         return result
 
+    def async_move_to_tab(self, tab_id):
+        command = 'move_to_tab:%d;' % (tab_id)
+        os.write(self._out_fd, command)
+
+    def send_list_tabs_command(self, pid):
+        os.write(self._out_fd, 'list_tabs;')
 
 
-class TabControl(object):
-    API_PROXY_NAMED_PIPES_DIR = os.path.join('/run', 'user', str(os.getuid()), "textual-switcher-proxy")
-    OUT_PIPE_FILENAME = os.path.join(API_PROXY_NAMED_PIPES_DIR, "textual_switcher_to_api_proxy_for_firefox_pid_%d")
-    IN_PIPE_FILENAME = os.path.join(API_PROXY_NAMED_PIPES_DIR, "api_proxy_to_textual_switcher_for_firefox_pid_%d")
-    ONE_MONTH_IN_SECONDS = 60 * 60 * 24 * 7 * 4
+    def async_list_tabs(self):
+        if self._is_updated:
+            self._is_updated = False
+            self._is_new_list_tab_request = True
 
-    def __init__(self, update_tabs_callback, update_tab_icon_callback):
-        self._in_fds_by_browser_pid = dict()
-        self._out_fds_by_browser_pid = dict()
-        self._update_tabs_callback = update_tabs_callback
-        self._update_tab_icon_callback = update_tab_icon_callback
-        self._in_id = None
-        self._icon_cache = expiringdict.ExpiringDict(max_len=100, max_age_seconds=self.ONE_MONTH_IN_SECONDS)
-        self._retry_counter_by_browser = dict()
-        self._is_updated_by_browser = dict()
+            print("{}: already updated".format(self.in_fd))
 
-    def async_list_browsers_tabs(self, active_browsers):
-        for browser in active_browsers:
-            self._retry_counter_by_browser[browser.pid] = 10
-            self._is_updated_by_browser[browser.pid] = False
-            GLib.timeout_add(100, self._async_list_browser_tabs, browser)
-
-    def _async_list_browser_tabs(self, browser, is_new_list_tab_request=True):
-        whether_to_repeat = True
-
-        if self._is_updated_by_browser[browser.pid]:
-            whether_to_repeat = False
-        else:
-            # Decrement left retries counters
-            self._retry_counter_by_browser[browser.pid] = max(0, self._retry_counter_by_browser[browser.pid] - 1)
-
-            # Eliminate browsers with no retries left
-            if self._retry_counter_by_browser[browser.pid] > 0:
-
-                # Validate connection
-                is_connected = self._validate_connection_to_browser(browser.pid)
-                if is_connected:
-                    # Schedule tablist in thread
-                    self._activate_callback_for_one_message_from_api_proxy(browser)
-                    if is_new_list_tab_request:
-                        self.send_list_tabs_command(browser.pid)
-
-                self._clean_stale_descriptors([browser])
-
+            # Schedule tablist in thread
+            self._activate_callback_for_one_message_from_api_proxy()
+            if self._is_new_list_tab_request:
+                print("{}: SENDING LIST TABS".format(self.in_fd))
+                self._is_new_list_tab_request = False
+                self.send_list_tabs_command(self.pid)
             else:
-                whether_to_repeat = False
+                print("Will read another chunk in a while")
+        else:
+            print("Not updated yet, cannot send another request")
 
-        return whether_to_repeat
-
-    def async_move_to_tab(self, tab_id, pid):
-        is_connected = self._validate_connection_to_browser(pid)
-        if is_connected:
-            command = 'move_to_tab:%d;' % (tab_id)
-            os.write(self._out_fds_by_browser_pid[pid], command)
-
-    def _validate_connection_to_browser(self, pid):
-        if not self._is_connected_to_api_proxy_for_browser_pid(pid):
+    def clean_fds(self):
+        for fd in [self.in_fd, self.out_fd]:
             try:
-                self._in_id = self._connect_to_api_for_browser_pid(pid)
-            except ApiProxyNotReady:
-                return False
-        return True
+                os.close(fd)
+            except:
+                pass
 
-    def _activate_callback_for_one_message_from_api_proxy(self, browser):
-        in_fd = self._in_fds_by_browser_pid[browser.pid].fd
-        GLib.io_add_watch(in_fd, GLib.IO_IN, self._receive_message_from_api_proxy, browser)
+    def _activate_callback_for_one_message_from_api_proxy(self):
+        self._nr_retries_left = 1000
+        GLib.io_add_watch(self.in_fd, GLib.IO_IN, self._receive_message_from_api_proxy)
+        GLib.timeout_add(50, self._receive_message_from_api_proxy)
 
-    def _is_connected_to_api_proxy_for_browser_pid(self, pid):
-        return pid in self._in_fds_by_browser_pid and pid in self._out_fds_by_browser_pid
+    def _receive_message_from_api_proxy(self, *args, **kwargs):
+        # Check if we got updated by the fd-based callback before the timer-tick-based callback
+        if self._is_updated:
+            return False
 
-    def _connect_to_api_for_browser_pid(self, pid):
-        in_pipe_filename = self.IN_PIPE_FILENAME % (pid,)
-        try:
-            fd = os.open(in_pipe_filename, os.O_RDONLY | os.O_NONBLOCK)
-            self._in_fds_by_browser_pid[pid] = NativeAppReader(fd)
-        except Exception as ex:
-            print('raise ApiProxyNotReady1 {}'.format(str(ex)))
-            raise ApiProxyNotReady(pid)
+        self._nr_retries_left = max(0, self._nr_retries_left - 1)
+        if self._nr_retries_left == 0:
+            self._is_updated = True
+            return False
 
-        out_pipe_filename = self.OUT_PIPE_FILENAME % (pid,)
-        try:
-            self._out_fds_by_browser_pid[pid] = os.open(out_pipe_filename, os.O_WRONLY | os.O_NONBLOCK)
-        except Exception as ex:
-            print('raise ApiProxyNotReady2 {}'.format(str(ex)))
-            raise ApiProxyNotReady(pid)
-
-    def _receive_message_from_api_proxy(self, fd, cond, browser):
-        pid = [_pid for _pid, native_app_reader in self._in_fds_by_browser_pid.iteritems() if fd == native_app_reader.fd]
-        if not pid or len(pid) > 1:
-            print('invalid browser pid', pid)
-            return
-        pid = pid[0]
         content = None
         try:
-            content = self._in_fds_by_browser_pid[pid].read()
+            content = self.read()
         except ApiProxyFdContentionTryAgainLater:
-            print("scheduling another list tabs")
-            self._async_list_browser_tabs(browser, is_new_list_tab_request=False)
+            print("scheduling another list tabs (self._is_updated stays False)")
         except Exception as ex:
             print(str(ex))
             print(type(ex))
-            return
 
         if content is not None:
             try:
@@ -199,13 +196,49 @@ class TabControl(object):
             except:
                 print('cannot load content of size {}:'.format(len(content)))
                 return
-            self._populate_tabs_icons(tabs)
-            self._update_tabs_callback(pid, tabs)
-            self._is_updated_by_browser[browser.pid] = True
+            self._update_tabs_callback(self.pid, tabs)
+            self._is_updated = True
 
-    def _populate_tabs_icons(self, tabs):
-        for tab in tabs:
-            tab['icon'] = self.get_tab_icon(tab, fetch_if_missing=True)
+        whether_to_repeat = not self._is_updated
+        return whether_to_repeat
+
+
+class TabControl(object):
+    ONE_MONTH_IN_SECONDS = 60 * 60 * 24 * 7 * 4
+
+    def __init__(self, update_tabs_callback, update_tab_icon_callback):
+        self._update_tab_icon_callback = update_tab_icon_callback
+        self.browsers = dict()
+        self._icon_cache = expiringdict.ExpiringDict(max_len=100, max_age_seconds=self.ONE_MONTH_IN_SECONDS)
+
+        def read_and_update_tabs(pid, tabs):
+            self._populate_tabs_icons(tabs)
+            update_tabs_callback(pid, tabs)
+
+        self._update_tabs_callback = read_and_update_tabs
+
+    def async_list_browsers_tabs(self, active_browsers):
+        self._clean_stale_browsers(active_browsers)
+
+        for browser in active_browsers:
+            if self._validate_connection_to_browser(browser.pid):
+                self.browsers[browser.pid].async_list_tabs()
+
+    def async_move_to_tab(self, tab_id, pid):
+        is_connected = self._validate_connection_to_browser(pid)
+        if is_connected:
+            self.browsers[pid].async_move_to_tab(tab_id)
+        else:
+            print("Warning: not connected to browser {}".format(pid))
+
+    def _validate_connection_to_browser(self, pid):
+        if pid not in self.browsers:
+            try:
+                browser = BrowserTabLister(pid, self._update_tabs_callback)
+                self.browsers[pid] = browser
+            except ApiProxyNotReady:
+                return False
+        return True
 
     def get_tab_icon(self, tab, fetch_if_missing=False):
         icon = None
@@ -249,31 +282,22 @@ class TabControl(object):
         try:
             input_stream = Gio.MemoryInputStream.new_from_data(contents, None)
             pixbuf = Pixbuf.new_from_stream(input_stream, None)
-        except Exception as ex:
-            print "Error fetching icon for URL '%s': %s" % (url, ex.message)
+        except:
+            print(traceback.format_exc())
+            print("Error generating icon from {}".format(url))
             return
         self._icon_cache[url] = pixbuf
         self._update_tab_icon_callback(url, contents)
 
-    def send_list_tabs_command(self, pid):
-        os.write(self._out_fds_by_browser_pid[pid], 'list_tabs;')
+    def _clean_stale_browsers(self, active_browsers):
+        active_browser_pids = set([browser.pid for browser in active_browsers])
+        stale_browser_pids = [browser_pid for browser_pid in self.browsers.keys()
+                              if browser_pid not in active_browser_pids]
 
-    def _clean_stale_descriptors(self, active_browsers):
-        stale_pids = [browser.pid for browser in active_browsers if
-                      browser.pid not in self._in_fds_by_browser_pid and
-                      browser.pid not in self._out_fds_by_browser_pid]
+        for browser in stale_browser_pids:
+            browser.clean_fds()
+            del self.browsers[browser.pid]
 
-        for pid in stale_pids:
-            self._clean_fds_for_browser_pid(stale_pids, {fd: native_app_reader for
-                                                         fd, native_app_reader in self._in_fds_by_browser_pid.items()})
-            self._clean_fds_for_browser_pid(stale_pids, self._out_fds_by_browser_pid)
-
-    def _clean_fds_for_browser_pid(self, browser_pids, pid_to_fd):
-        stale_pids_in_dict = [pid for pid in browser_pids if pid in pid_to_fd]
-        for pid in stale_pids_in_dict:
-            fd = pid_to_fd[pid]
-            try:
-                os.close(fd)
-            except:
-                pass
-            del pid_to_fd[pid]
+    def _populate_tabs_icons(self, tabs):
+        for tab in tabs:
+            tab['icon'] = self.get_tab_icon(tab, fetch_if_missing=True)
