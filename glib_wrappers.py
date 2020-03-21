@@ -44,7 +44,7 @@ def async_get_url(url, on_ready_callback):
         try:
             success, contents, etag = source_object.load_contents_finish(result)
         except GLib.GError as e:
-            print("Error loading URL '%s': %s" % (url, e.message))
+            print("Error loading URL '%s': %s" % (url, e.message.decode('utf-8')))
         else:
             if success:
                 on_ready_callback(url, contents)
