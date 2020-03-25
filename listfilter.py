@@ -16,7 +16,7 @@ class ListFilter(object):
         self._search_key = ""
 
     def update_search_key(self, search_key):
-        self._search_key = self._normalize(search_key)
+        self._search_key = self._normalize(search_key).decode('utf-8','ignore')
 
     def _normalize(self, title):
         title = filter_printable(title)
