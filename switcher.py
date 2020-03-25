@@ -183,17 +183,17 @@ class EntryWindow(Gtk.Window):
         self._select_first_window()
 
     def _add_tabs_of_window_to_tree(self, window, row_iter):
-	if window.pid in self._tabs:
+        if window.pid in self._tabs:
             for tab in self._tabs[window.pid]:
-		icon = self._tabcontrol.get_tab_icon(tab)
-		if icon is None:
+                icon = self._tabcontrol.get_tab_icon(tab)
+                if icon is None:
                     icon = window.icon
                 else:
                     icon = icon.scale_simple(self.ICON_SIZE, self.ICON_SIZE, InterpType.BILINEAR)
-		self._tree.append(row_iter, [icon, tab['title'], window.xid, tab['id']])
+                self._tree.append(row_iter, [icon, tab['title'], window.xid, tab['id']])
 
     def _tab_icon_ready(self, url, icon):
-	self._refresh_tree()
+        self._refresh_tree()
 
     def _enforce_expanded_mode(self):
         if self._expanded_mode:
