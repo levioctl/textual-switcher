@@ -32,5 +32,8 @@ port.onMessage.addListener((message) => {
     tabId = parseInt(message.substring("move_to_tab:".length));
     console.log("Switching to tab " + tabId);
     chrome.tabs.update(tabId, {active: true});
+  } else if (message.startsWith("create_tab:")) {
+    url = message.substring("create_tab:");
+    chrome.tabs.create({url: url});
   }
 });

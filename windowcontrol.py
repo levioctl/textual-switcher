@@ -5,21 +5,7 @@ gi.require_version('Wnck', '3.0')
 from gi.repository import Wnck, GLib
 
 import glib_wrappers
-
-
-class Window(object):
-    BROWSERS_WM_CLASSES = ["Navigator.Firefox", "google-chrome.Google-chrome"]
-
-    def __init__(self):
-        self.xid = None
-        self.pid = None
-        self.wm_class = None
-        self.title = None
-        self.destkop_id = None
-        self.hostname = None
-
-    def is_browser(self):
-        return self.wm_class in self.BROWSERS_WM_CLASSES
+import window
 
 
 class WindowControl(object):
@@ -33,8 +19,8 @@ class WindowControl(object):
             output = io.read()
             windows = self.parse_wlist_output(output)
             icons = self._get_icons()
-            for window in windows:
-                window.icon = icons.get(window.xid, None)
+            for _window in windows:
+                _window.icon = icons.get(_window.xid, None)
             callback(windows)
 
         io.add_watch(GLib.IO_IN | GLib.IO_HUP, list_windows_callback)
@@ -54,24 +40,24 @@ class WindowControl(object):
     def parse_wlist_output(wlist_output):
         windows = list()
         for line in wlist_output.splitlines():
-            window = Window()
+            _window = window.Window()
             xid_hex_str, line = line.split(" ", 1)
-            window.xid = int(xid_hex_str, 16)
+            _window.xid = int(xid_hex_str, 16)
             line = line.lstrip()
-            window.desktop_id, line = line.split(" ", 1)
+            _window.desktop_id, line = line.split(" ", 1)
             line = line.lstrip()
             pid_str, line = line.split(" ", 1)
-            window.pid = int(pid_str)
+            _window.pid = int(pid_str)
             line = line.lstrip()
-            window.wm_class, line = line.split(" ", 1)
-            if window.wm_class == "N/A":
+            _window.wm_class, line = line.split(" ", 1)
+            if _window.wm_class == "N/A":
                 continue
             line = line.lstrip()
-            window.hostname, line = line.split(" ", 1)
-            if window.title == "Desktop":
+            _window.hostname, line = line.split(" ", 1)
+            if _window.title == "Desktop":
                 continue
-            window.title = line.lstrip()
-            windows.append(window)
+            _window.title = line.lstrip()
+            windows.append(_window)
         return windows
 
     def _get_icons(self):

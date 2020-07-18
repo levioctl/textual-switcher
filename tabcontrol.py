@@ -18,10 +18,13 @@ KNOWN_ICON_TYPES = (
                     "gif",
                     "x-iconbase64",
                     "pngbase64",
+                    "jpeg",
+                    "svg+xml",
                     )
 KNOWN_BASE64_ICON_TYPES = (
                            "x-iconbase64",
                            "pngbase64",
+                           #"svg+xml",
                            )
 
 
@@ -87,30 +90,30 @@ class BrowserTabLister(object):
     def read(self):
         # Read length if new payload
         if self.message_length is None:
-            print("{}: Reading length of 4 bytes".format(self.in_fd))
+            #print("{}: Reading length of 4 bytes".format(self.in_fd))
             raw_length = os.read(self.in_fd, 4)
             if not raw_length:
-                print("Invalid raw length")
+                #print("Invalid raw length")
                 return None
             self.message_length = struct.unpack('=I', raw_length)[0]
-            print("{}: New length: {} bytes".format(self.in_fd, self.message_length))
+            #print("{}: New length: {} bytes".format(self.in_fd, self.message_length))
 
         # Read payload
         read_counter = 0
         while len(self.payload) < self.message_length:
             nr_bytes_left_to_read = self.message_length - len(self.payload)
             try:
-                print('{}: reading 1024 bytes ({} left)'.format(self.in_fd, nr_bytes_left_to_read))
+                #print('{}: reading 1024 bytes ({} left)'.format(self.in_fd, nr_bytes_left_to_read))
                 chunk = os.read(self.in_fd, min(nr_bytes_left_to_read, 1024))
             except IOError as ex:
                 if ex.errno == 32:
-                    print("{}: will try again later".format(self.in_fd))
+                    #print("{}: will try again later".format(self.in_fd))
                     raise ApiProxyFdContentionTryAgainLater
                 else:
                     raise
             except OSError as ex:
                 if ex.errno == 11:
-                    print("{}: will try again later (2)".format(self.in_fd))
+                    #print("{}: will try again later (2)".format(self.in_fd))
                     raise ApiProxyFdContentionTryAgainLater
                 else:
                     raise
@@ -137,29 +140,33 @@ class BrowserTabLister(object):
         command = 'move_to_tab:%d;' % (tab_id)
         os.write(self._out_fd, command)
 
-    def send_list_tabs_command(self, pid):
-        os.write(self._out_fd, 'list_tabs;')
-
 
     def async_list_tabs(self):
         if self._is_updated:
             self._is_updated = False
             self._is_new_list_tab_request = True
 
-            print("{}: already updated".format(self.in_fd))
+            #print("{}: already updated".format(self.in_fd))
 
             # Schedule tablist in thread
             self._activate_callback_for_one_message_from_api_proxy()
             if self._is_new_list_tab_request:
-                print("{}: SENDING LIST TABS".format(self.in_fd))
+                #print("{}: SENDING LIST TABS".format(self.in_fd))
                 self._is_new_list_tab_request = False
-                self.send_list_tabs_command(self.pid)
+                self._send_list_tabs_command(self.pid)
             else:
                 print("Will read another chunk in a while")
         else:
             print("Not updated yet, cannot send another request")
 
-    def clean_fds(self):
+    def async_create_tab(self, url):
+        command = 'create_tab:%s;' % (url,)
+        os.write(self._out_fd, command)
+
+    def _send_list_tabs_command(self, pid):
+        os.write(self._out_fd, 'list_tabs;')
+
+    def _clean_fds(self):
         for fd in [self.in_fd, self.out_fd]:
             try:
                 os.close(fd)
@@ -295,7 +302,7 @@ class TabControl(object):
                               if browser_pid not in active_browser_pids]
 
         for browser in stale_browser_pids:
-            browser.clean_fds()
+            browser._clean_fds()
             del self.browsers[browser.pid]
 
     def _populate_tabs_icons(self, tabs):
