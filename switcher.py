@@ -43,12 +43,11 @@ class EntryWindow(Gtk.Window):
         self._tabcontrol = tabcontrol.TabControl(self._update_tabs_callback, self._tab_icon_ready)
         glib_wrappers.register_signal(self._focus_on_me, signal.SIGHUP)
         self._set_window_properties()
-        self._help_label = None
         self._help_label = self._create_help_label()
         self._add_gui_components_to_window()
         self._async_list_windows()
         self._windows = None
-        self._tabs = dict()
+        self._tabs = {}
         self._expanded_mode = True
 
     def _set_window_properties(self):
