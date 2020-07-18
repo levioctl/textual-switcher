@@ -12,22 +12,7 @@ import listfilter
 import tabcontrol
 import glib_wrappers
 import windowcontrol
-
-
-KEYCODE_ESCAPE = 9
-KEYCODE_CTRL = 37
-KEYCODE_ARROW_DOWN = 116
-KEYCODE_ARROW_UP = 111
-KEYCODE_J = 44
-KEYCODE_K = 45
-KEYCODE_L = 46
-KEYCODE_W = 25
-KEYCODE_C = 54
-KEYCODE_D = 40
-KEYCODE_H = 43
-KEYCODE_BACKSLASH = 22
-KEYCODE_BACKSPACE = 54
-KEYCODE_SPACE = 65
+import keycodes
 
 
 class EntryWindow(Gtk.Window):
@@ -274,41 +259,41 @@ class EntryWindow(Gtk.Window):
         state = args[1].get_state()
         is_ctrl_pressed = (state & state.CONTROL_MASK).bit_length() > 0
         # Don't switch focus in case of up/down arrow
-        if keycode == KEYCODE_ARROW_DOWN:
+        if keycode == keycodes.KEYCODE_ARROW_DOWN:
             self._select_next_item()
-        elif keycode == KEYCODE_ARROW_UP:
+        elif keycode == keycodes.KEYCODE_ARROW_UP:
             self._select_previous_item()
-        elif keycode == KEYCODE_CTRL:
+        elif keycode == keycodes.KEYCODE_CTRL:
             self._is_ctrl_pressed = True
-        elif keycode == KEYCODE_ESCAPE:
+        elif keycode == keycodes.KEYCODE_ESCAPE:
             sys.exit(0)
         elif is_ctrl_pressed:
-            if keycode == KEYCODE_D:
+            if keycode == keycodes.KEYCODE_D:
                 self._select_last_item()
-            if keycode == KEYCODE_J:
+            if keycode == keycodes.KEYCODE_J:
                 self._select_next_item()
-            elif keycode == KEYCODE_K:
+            elif keycode == keycodes.KEYCODE_K:
                 self._select_previous_item()
-            elif keycode == KEYCODE_C:
+            elif keycode == keycodes.KEYCODE_C:
                 self.set_visible(False)
-            elif keycode == KEYCODE_L:
+            elif keycode == keycodes.KEYCODE_L:
                 self._async_list_windows()
                 self._select_first_window()
-            elif keycode == KEYCODE_W:
+            elif keycode == keycodes.KEYCODE_W:
                 self._search_textbox.set_text("")
-            elif keycode == KEYCODE_BACKSPACE:
+            elif keycode == keycodes.KEYCODE_BACKSPACE:
                 self._send_signal_to_selected_process(signal.SIGTERM)
-            elif keycode == KEYCODE_BACKSLASH:
+            elif keycode == keycodes.KEYCODE_BACKSLASH:
                 self._send_signal_to_selected_process(signal.SIGKILL)
-            elif keycode == KEYCODE_SPACE:
+            elif keycode == keycodes.KEYCODE_SPACE:
                 self._expanded_mode = not self._expanded_mode
                 self._enforce_expanded_mode()
-            if keycode == KEYCODE_H:
+            if keycode == keycodes.KEYCODE_H:
                 self._toggle_help_text()
 
     def _treeview_keypress(self, *args):
         keycode = args[1].get_keycode()[1]
-        if keycode not in (KEYCODE_ARROW_UP, KEYCODE_ARROW_DOWN):
+        if keycode not in (keycodes.KEYCODE_ARROW_UP, keycodes.KEYCODE_ARROW_DOWN):
             self._search_textbox.grab_focus()
 
     def _get_selected_row(self):
