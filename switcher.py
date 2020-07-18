@@ -38,7 +38,6 @@ class EntryWindow(Gtk.Window):
         self._treefilter = self._create_tree_filter()
         self._treeview = self._create_treeview()
         self._select_first_window()
-        self._is_ctrl_pressed = False
         self._windowcontrol = windowcontrol.WindowControl()
         self._listfilter = listfilter.ListFilter()
         self._tabcontrol = tabcontrol.TabControl(self._update_tabs_callback, self._tab_icon_ready)
@@ -263,8 +262,6 @@ class EntryWindow(Gtk.Window):
             self._select_next_item()
         elif keycode == keycodes.KEYCODE_ARROW_UP:
             self._select_previous_item()
-        elif keycode == keycodes.KEYCODE_CTRL:
-            self._is_ctrl_pressed = True
         elif keycode == keycodes.KEYCODE_ESCAPE:
             sys.exit(0)
         elif is_ctrl_pressed:
