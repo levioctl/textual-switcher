@@ -1,3 +1,4 @@
 launch
 *.pyc
 *.log
+token.pickle

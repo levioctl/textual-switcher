@@ -100,7 +100,6 @@ class GoogleDriveFileSynchronizer(object):
         print("Writing to file ID {} from file {}".format(self._file_id, self._filename))
 
         result = self._client.update_file(self._file_id, self._filename)
-        print(result)
 
 
 def main():

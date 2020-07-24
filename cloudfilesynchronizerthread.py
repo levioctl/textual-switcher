@@ -24,11 +24,6 @@ class CloudFileSynchronizerThread(threading.Thread):
     def run(self):
         while True:
             # Create local cache if it does not exist
-            filename = os.path.join(self.LOCAL_DIR, self._filename)
-            if not os.path.exists(filename):
-                with open(self._filename, "w"):
-                    pass
-
             # Connect if needed
             if not self._is_connected():
                 try:
@@ -46,6 +41,10 @@ class CloudFileSynchronizerThread(threading.Thread):
             try:
                 request = self._incoming_requests.get(block=True)
                 if request['type'] == 'write':
+                    filename = os.path.join(self.LOCAL_DIR, self._filename)
+                    with open(self._filename, "w") as local_file:
+                        local_file.write(request['contents'])
+
                     print("Writing to cloud once")
                     self._cloud_file_synchronizer.write_to_remote_file()
                 elif request['type'] == 'read':
@@ -61,8 +60,8 @@ class CloudFileSynchronizerThread(threading.Thread):
     def async_get_content(self):
         self._incoming_requests.put({'type': 'read'}, block=True)
 
-    def async_write_to_cloud(self):
-        self._incoming_requests.put({'type': 'write'}, block=True)
+    def async_write_to_cloud(self, contents):
+        self._incoming_requests.put({'type': 'write', 'contents': contents}, block=True)
 
     def _connect(self):
         self._cloud_file_synchronizer = gdrive_client.GoogleDriveFileSynchronizer(self._filename,
