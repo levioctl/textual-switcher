@@ -278,20 +278,23 @@ class TabControl(object):
                     if image is not None:
                         if is_base64:
                             image = base64.b64decode(image)
-                        self._tab_icon_ready(url, image)
+                        self._tab_icon_ready(url, image, tab)
                         break
                 else:
                     # Parse image as URL
-                    glib_wrappers.async_get_url(url, self._tab_icon_ready)
+                    def callback(url, contents):
+                        return self._tab_icon_ready(url, contents, tab)
+
+                    glib_wrappers.async_get_url(url, callback)
         return icon
 
-    def _tab_icon_ready(self, url, contents):
+    def _tab_icon_ready(self, url, contents, tab):
         try:
             input_stream = Gio.MemoryInputStream.new_from_data(contents, None)
             pixbuf = Pixbuf.new_from_stream(input_stream, None)
         except:
             print(traceback.format_exc())
-            print("Error generating icon from {}".format(url))
+            print("Error generating icon from URL (first 20 chars): {}. tab title: {}".format(url[:20], tab['title']))
             return
         self._icon_cache[url] = pixbuf
         self._update_tab_icon_callback(url, contents)
