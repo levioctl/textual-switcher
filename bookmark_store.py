@@ -20,10 +20,13 @@ class BookmarksStore(object):
                 "bookmarks.yaml",
                 connected_to_cloud_callback,
                 disconnected_from_cloud_callback,
-                self._list_bookmarks_callback)
+                self._list_bookmarks_callback,
+                self._get_local_cache_callback)
 
     def async_list_bookmarks(self):
-        self._cloudfilesynchronizerthread.async_get_content()
+        if self._bookmarks is None:
+            self._cloudfilesynchronizerthread.async_read_local_cache()
+        self._cloudfilesynchronizerthread.async_read()
 
     def add_bookmark(self, url, title):
         # Validate connection to cloud storage
@@ -32,15 +35,25 @@ class BookmarksStore(object):
 
         # Write the local file (TODO do this asynchronously)
         self._bookmarks.append([url, title])
-        with tempfile.NamedTemporaryFile() as local_bookmarks_file:
-            yaml.safe_dump(self._bookmarks, local_bookmarks_file, encoding='utf-8', allow_unicode=True)
+        contents = yaml.dump(self._bookmarks, encoding='utf-8', allow_unicode=True)
         
         # Write the file to cloud
-        self._cloudfilesynchronizerthread.async_write_to_cloud()
+        self._cloudfilesynchronizerthread.async_write(contents)
 
     def _list_bookmarks_callback(self, bookmarks_yaml):
         print("Bookmarks received from cloud.")
-        self._bookmarks = yaml.safe_load(bookmarks_yaml)
+        self._update_bookmarks_from_encoded_yaml(bookmarks_yaml)
+
+    def _get_local_cache_callback(self, bookmarks_yaml_cache):
+        if self._bookmarks is None:
+            print("Bookmarks read from local cache.")
+            self._update_bookmarks_from_encoded_yaml(bookmarks_yaml_cache)
+        else:
+            print("Bookmarks read from local cache, but local cache is not empty.")
+
+    def _update_bookmarks_from_encoded_yaml(self, encoded_yaml):
+        self._bookmarks = yaml.safe_load(encoded_yaml)
         if self._bookmarks is None:
             self._bookmarks = []
+    
         self._list_bookmarks_main_glib_loop_callback(self._bookmarks)
