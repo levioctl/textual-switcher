@@ -10,13 +10,16 @@ class BookmarksStore(object):
     (STATE_INITIALIZING,
      STATE_IDLE,
      STATE_WAITING_FOR_RESPONSE) = range(3)
-    def __init__(self, list_bookmarks_main_glib_loop_callback):
+    def __init__(self,
+                 list_bookmarks_main_glib_loop_callback,
+                 connected_to_cloud_callback,
+                 disconnected_from_cloud_callback):
         self._bookmarks = None
         self._list_bookmarks_main_glib_loop_callback = list_bookmarks_main_glib_loop_callback
         self._cloudfilesynchronizerthread = cloudfilesynchronizerthread.CloudFileSynchronizerThread(
                 "bookmarks.yaml",
-                self._connected_to_cloud_callback,
-                self._disconnected_from_cloud_callback,
+                connected_to_cloud_callback,
+                disconnected_from_cloud_callback,
                 self._list_bookmarks_callback)
 
     def async_list_bookmarks(self):
@@ -41,9 +44,3 @@ class BookmarksStore(object):
         if self._bookmarks is None:
             self._bookmarks = []
         self._list_bookmarks_main_glib_loop_callback(self._bookmarks)
-
-    def _connected_to_cloud_callback(self):
-        print("Connected to cloud storage")
-
-    def _disconnected_from_cloud_callback(self):
-        print("Disconnected from cloud storage")

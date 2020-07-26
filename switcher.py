@@ -48,7 +48,9 @@ class EntryWindow(Gtk.Window):
         self._tabcontrol = tabcontrol.TabControl(self._update_tabs_callback, self._tab_icon_ready)
         glib_wrappers.register_signal(self._focus_on_me, signal.SIGHUP)
         self._set_window_properties()
-        self._bookmarks_store = bookmark_store.BookmarksStore(self._list_bookmarks_callback)
+        self._bookmarks_store = bookmark_store.BookmarksStore(self._list_bookmarks_callback,
+                                                              self._connected_to_cloud_callback,
+                                                              lambda: None)
         self._help_label = self._create_help_label()
         self._status_label = self._create_status_label()
         self._add_gui_components_to_window()

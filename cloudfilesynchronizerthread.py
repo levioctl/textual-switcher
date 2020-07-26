@@ -23,17 +23,16 @@ class CloudFileSynchronizerThread(threading.Thread):
 
     def run(self):
         while True:
-            # Create local cache if it does not exist
             # Connect if needed
             if not self._is_connected():
                 try:
                     self._connect()
-                except Exception as ex:
+                except:
                     print("Could not connect to cloud storage: {}".format(traceback.format_exc()))
                     
                     time.sleep(10)
                     continue
-                print('Connected to cloud storage')
+
                 # Inform main loop that connection is established
                 self._connected_callback()
 
