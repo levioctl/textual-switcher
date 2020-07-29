@@ -92,7 +92,7 @@ class EntryWindow(Gtk.Window):
 
     def _create_status_label(self):
         label = Gtk.Label()
-        label.set_text("Drive: not connected")
+        label.set_text("Bookmarks: Connecting to drive")
         label.set_justify(Gtk.Justification.LEFT)
         return label
 
@@ -139,6 +139,7 @@ class EntryWindow(Gtk.Window):
 
     def _async_list_windows(self):
         self._windowcontrol.async_list_windows(callback=self._update_windows_listbox_callback)
+        self._status_label.set_text("Bookmarks: Reading from drive...")
         self._bookmarks_store.async_list_bookmarks()
 
     def _select_last_item(self):
@@ -296,10 +297,14 @@ class EntryWindow(Gtk.Window):
     def _disconnected_from_cloud_callback(self):
         print("Disconnected from cloud")
 
-    def _list_bookmarks_callback(self, bookmarks):
+    def _list_bookmarks_callback(self, bookmarks, is_connected):
         def update_bookmarks():
             self._bookmarks = bookmarks
             self._entriestree.refresh(self._windows, self._tabs, self._bookmarks, self._expanded_mode)
+            if is_connected:
+                self._status_label.set_text("Bookmarks: synced to drive")
+            else:
+                self._status_label.set_text("Bookmarks: Not connected, using local cache")
             return False
 
         GLib.timeout_add(0, update_bookmarks)
