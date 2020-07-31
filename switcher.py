@@ -18,6 +18,53 @@ import bookmark_store
 import entriestree
 
 
+class DefaultApp:
+    def __init__(self, switcher_window):
+        self._switcher_window = switcher_window
+        self._actions = {}
+
+        self._actions[keycodes.KEYCODE_ARROW_DOWN] = self._switcher_window.select_next_item
+        self._actions[keycodes.KEYCODE_ARROW_UP] = self._switcher_window.select_previous_item
+        self._actions[keycodes.KEYCODE_ESCAPE] = lambda: sys.exit(0)
+        self._actions[keycodes.KEYCODE_D] = self._switcher_window.select_last_item
+        self._actions[keycodes.KEYCODE_J] = self._switcher_window.select_next_item
+        self._actions[keycodes.KEYCODE_K] = self._switcher_window.select_previous_item
+        self._actions[keycodes.KEYCODE_C] = lambda: self._switcher_window.set_visible(False)
+        self._actions[keycodes.KEYCODE_L] = self._refresh
+        self._actions[keycodes.KEYCODE_W] = lambda: self._switcher_window.search_textbox.set_text("")
+        self._actions[keycodes.KEYCODE_BACKSPACE] = lambda: self._switcher_window.send_signal_to_selected_process(signal.SIGTERM)
+        self._actions[keycodes.KEYCODE_BACKSLASH] = lambda: self._switcher_window.send_signal_to_selected_process(signal.SIGKILL)
+        self._actions[keycodes.KEYCODE_H] = self._switcher_window.toggle_help_next
+        self._actions[keycodes.KEYCODE_CTRL_PLUS] = self._switcher_window.add_selection_as_bookmark
+        #self._actions[keycodes.KEYCODE_CTRL_HYPEN] = self._switcher_window.remove_selected_bookmark
+
+    def _refresh(self):
+        self._switcher_window.async_list_windows()
+        self.select_first_window()
+
+    def _toggle_expanded_mode(self):
+        self._switcher_window.expanded_mode = not self._switcher_window.expanded_mode
+        self._switcher_window.enforce_expanded_mode()
+
+    def handle_keypress(self, *args):
+        keycode = args[1].get_keycode()[1]
+        state = args[1].get_state()
+        #is_ctrl_pressed = (state & state.CONTROL_MASK).bit_length() > 0
+        # Don't switch focus in case of up/down arrow
+        if keycode in self._actions:
+            self._actions[keycode]()
+
+
+class EntriesSearch(DefaultApp):
+    def __init__(self, switcher_window):
+        DefaultApp.__init__(self, switcher_window)
+
+
+class ChooseParentBookmarksDir(DefaultApp):
+    def __init__(self, switcher_window):
+            DefaultApp.__init__(self, switcher_window)
+
+
 class EntryWindow(Gtk.Window):
     WINDOW_TITLE = "Textual Switcher"
 
@@ -42,8 +89,8 @@ class EntryWindow(Gtk.Window):
         self._entriestree = entriestree.EntriesTree(self._window_selected_callback,
                                                     self._treeview_keypress,
                                                     self._get_tab_icon_callback)
-        self._search_textbox = self._create_search_textbox()
-        self._select_first_window()
+        self.search_textbox = self._create_search_textbox()
+        self.select_first_window()
         self._windowcontrol = windowcontrol.WindowControl()
         self._tabcontrol = tabcontrol.TabControl(self._update_tabs_callback, self._tab_icon_ready)
         glib_wrappers.register_signal(self._focus_on_me, signal.SIGHUP)
@@ -54,9 +101,17 @@ class EntryWindow(Gtk.Window):
         self._help_label = self._create_help_label()
         self._status_label = self._create_status_label()
         self._add_gui_components_to_window()
-        self._async_list_windows()
-        self._expanded_mode = True
+        self.async_list_windows()
+        self.expanded_mode = True
 
+        # Gui Apps (different modes for the same window layout)
+        self._gui_apps = {'entries_search': EntriesSearch(self),
+                          'choose_parent_bookmarks_dir_app': ChooseParentBookmarksDir(self)
+        }
+        self._current_app = self._gui_apps['entries_search']
+
+    def move_to_gui_app(self, gui_app_name):
+        self._current_app = self._gui_apps[gui_app_name]
     def _set_window_properties(self):
         self.set_size_request(500, 500)
         self.set_position(Gtk.WindowPosition.CENTER)
@@ -64,7 +119,7 @@ class EntryWindow(Gtk.Window):
     def _add_gui_components_to_window(self):
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.add(vbox)
-        vbox.pack_start(self._search_textbox, expand=False, fill=True, padding=0)
+        vbox.pack_start(self.search_textbox, expand=False, fill=True, padding=0)
         treeview_scroll_wrapper = self._create_treeview_scroll_wrapper()
         vbox.pack_start(treeview_scroll_wrapper, True, True, 0)
         vbox.pack_start(self._status_label, False, True, 0)
@@ -99,9 +154,9 @@ class EntryWindow(Gtk.Window):
     def _focus_on_me(self):
         self.set_visible(True)
         self._windowcontrol.async_focus_on_window(self._get_xid())
-        self._async_list_windows()
+        self.async_list_windows()
 
-        self._search_textbox.set_text("")
+        self.search_textbox.set_text("")
 
     def _get_xid(self):
         if self._xid is None:
@@ -115,15 +170,15 @@ class EntryWindow(Gtk.Window):
     def _update_windows_listbox_callback(self, windows):
         windows = [window for window in windows if window.xid != self._get_xid()]
         self._windows = {window.xid: window_entry.WindowEntry(window, entriestree.ICON_SIZE) for window in windows}
-        self._entriestree.refresh(self._windows, self._tabs, self._bookmarks, self._expanded_mode)
+        self._entriestree.refresh(self._windows, self._tabs, self._bookmarks, self.expanded_mode)
         self._async_list_tabs_from_windows_list(windows)
 
     def _tab_icon_ready(self, url, icon):
         # TODO can we refresh this tab list entry only
-        self._entriestree.refresh(self._windows, self._tabs, self._bookmarks, self._expanded_mode)
+        self._entriestree.refresh(self._windows, self._tabs, self._bookmarks, self.expanded_mode)
 
-    def _enforce_expanded_mode(self):
-        self._entriestree.enforce_expanded_mode(self._expanded_mode)
+    def enforce_expanded_mode(self):
+        self._entriestree.enforce_expanded_mode(self.expanded_mode)
 
     def _async_list_tabs_from_windows_list(self, windows):
         active_browsers = [window for window in windows if window.is_browser()]
@@ -135,23 +190,23 @@ class EntryWindow(Gtk.Window):
 
     def _update_tabs_callback(self, pid, tabs):
         self._tabs[pid] = tabs
-        self._entriestree.refresh(self._windows, self._tabs, self._bookmarks, self._expanded_mode)
+        self._entriestree.refresh(self._windows, self._tabs, self._bookmarks, self.expanded_mode)
 
-    def _async_list_windows(self):
+    def async_list_windows(self):
         self._windowcontrol.async_list_windows(callback=self._update_windows_listbox_callback)
         self._status_label.set_text("Bookmarks: Reading from drive...")
         self._bookmarks_store.async_list_bookmarks()
 
-    def _select_last_item(self):
+    def select_last_item(self):
         cursor = self._entriestree.treeview.get_cursor()[0]
         if cursor is not None:
-            nr_rows = len(self._treefilter)
+            nr_rows = len(self._entriestree.treefilter)
             self._entriestree.treeview.set_cursor(nr_rows - 1)
 
-    def _select_next_item(self):
+    def select_next_item(self):
         model, _iter = self._entriestree.get_selected_row()
         row = model[_iter]
-        if self._expanded_mode:
+        if self.expanded_mode:
             try:
                 next_row = row.iterchildren().next()
             except:
@@ -173,7 +228,7 @@ class EntryWindow(Gtk.Window):
             child = None
         return child
 
-    def _select_previous_item(self):
+    def select_previous_item(self):
         model, _iter = self._entriestree.get_selected_row()
         original = current = model[_iter]
         while current.previous is None and current.parent != None:
@@ -196,48 +251,12 @@ class EntryWindow(Gtk.Window):
         self._entriestree.treeview.set_cursor(current.path)
 
     def _entry_keypress_callback(self, *args):
-        keycode = args[1].get_keycode()[1]
-        state = args[1].get_state()
-        is_ctrl_pressed = (state & state.CONTROL_MASK).bit_length() > 0
-        # Don't switch focus in case of up/down arrow
-        if keycode == keycodes.KEYCODE_ARROW_DOWN:
-            self._select_next_item()
-        elif keycode == keycodes.KEYCODE_ARROW_UP:
-            self._select_previous_item()
-        elif keycode == keycodes.KEYCODE_ESCAPE:
-            sys.exit(0)
-        elif is_ctrl_pressed:
-            if keycode == keycodes.KEYCODE_D:
-                self._select_last_item()
-            if keycode == keycodes.KEYCODE_J:
-                self._select_next_item()
-            elif keycode == keycodes.KEYCODE_K:
-                self._select_previous_item()
-            elif keycode == keycodes.KEYCODE_C:
-                self.set_visible(False)
-            elif keycode == keycodes.KEYCODE_L:
-                self._async_list_windows()
-                self._select_first_window()
-            elif keycode == keycodes.KEYCODE_W:
-                self._search_textbox.set_text("")
-            elif keycode == keycodes.KEYCODE_BACKSPACE:
-                self._send_signal_to_selected_process(signal.SIGTERM)
-            elif keycode == keycodes.KEYCODE_BACKSLASH:
-                self._send_signal_to_selected_process(signal.SIGKILL)
-            elif keycode == keycodes.KEYCODE_SPACE:
-                self._expanded_mode = not self._expanded_mode
-                self._enforce_expanded_mode()
-            if keycode == keycodes.KEYCODE_H:
-                self._toggle_help_text()
-            if keycode == keycodes.KEYCODE_CTRL_PLUS:
-                self._add_selection_as_bookmark()
-            if keycode == keycodes.KEYCODE_CTRL_HYPEN:
-                self._remove_selected_bookmark()
+        self._current_app.handle_keypress(*args)
 
     def _treeview_keypress(self, *args):
         keycode = args[1].get_keycode()[1]
         if keycode not in (keycodes.KEYCODE_ARROW_UP, keycodes.KEYCODE_ARROW_DOWN):
-            self._search_textbox.grab_focus()
+            self.search_textbox.grab_focus()
 
     def _is_some_window_selected(self):
         _, _iter = self._entriestree.get_selected_row()
@@ -255,7 +274,7 @@ class EntryWindow(Gtk.Window):
                 self.set_visible(False)
             except subprocess.CalledProcessError:
                 # Actual window list has changed since last reload
-                self._async_list_windows()
+                self.async_list_windows()
             tab_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_TAB_ID)
             is_tab = tab_id >= 0
             if is_tab:
@@ -271,21 +290,21 @@ class EntryWindow(Gtk.Window):
         self._entriestree.update_search_key(search_key)
         self._entriestree.treefilter.refilter()
         if not self._is_some_window_selected():
-            self._select_first_window()
-        self._enforce_expanded_mode()
+            self.select_first_window()
+        self.enforce_expanded_mode()
         if len(self._entriestree.tree):
             self._entriestree.select_first_tab_under_selected_window()
 
-    def _select_first_window(self):
+    def select_first_window(self):
         self._entriestree.select_first_window()
 
-    def _send_signal_to_selected_process(self, signal_type):
+    def send_signal_to_selected_process(self, signal_type):
         window_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_WINDOW_ID)
         window = self._windows[window_id]
         os.kill(window.get_pid(), signal_type)
-        self._async_list_windows()
+        self.async_list_windows()
 
-    def _toggle_help_text(self):
+    def toggle_help_next(self):
         if self._help_label.get_text() == self.SHORT_HELP_TEXT:
             self._help_label.set_text(self.FULL_HELP_TEXT)
         else:
@@ -300,7 +319,7 @@ class EntryWindow(Gtk.Window):
     def _list_bookmarks_callback(self, bookmarks, is_connected):
         def update_bookmarks():
             self._bookmarks = bookmarks
-            self._entriestree.refresh(self._windows, self._tabs, self._bookmarks, self._expanded_mode)
+            self._entriestree.refresh(self._windows, self._tabs, self._bookmarks, self.expanded_mode)
             if is_connected:
                 self._status_label.set_text("Bookmarks: synced to drive")
             else:
@@ -309,7 +328,7 @@ class EntryWindow(Gtk.Window):
 
         GLib.timeout_add(0, update_bookmarks)
 
-    def _add_selection_as_bookmark(self):
+    def add_selection_as_bookmark(self):
         url = selected_window_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_URL)
         title = selected_window_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_TITLE)
         self._bookmarks_store.add_bookmark(url, title)
