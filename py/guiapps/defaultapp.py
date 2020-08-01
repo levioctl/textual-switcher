@@ -26,7 +26,6 @@ class DefaultApp:
         self._actions[True][keycodes.KEYCODE_BACKSPACE] = self._term_selected_process
         self._actions[True][keycodes.KEYCODE_BACKSLASH] = self._kill_selected_process
         self._actions[True][keycodes.KEYCODE_H] = self._switcher_window.toggle_help_next
-        self._actions[True][keycodes.KEYCODE_HYPEN] = None
 
     def switch(self):
         pass
@@ -52,10 +51,10 @@ class DefaultApp:
 
     def handle_keypress(self, *args):
         keycode = args[1].get_keycode()[1]
-        print(keycode)
         state = args[1].get_state()
         self._is_ctrl_pressed = (state & state.CONTROL_MASK).bit_length() > 0
         # Don't switch focus in case of up/down arrow
+        print(keycode, self._is_ctrl_pressed)
         if keycode in self._actions[self._is_ctrl_pressed]:
             action = self._actions[self._is_ctrl_pressed][keycode]
             action()

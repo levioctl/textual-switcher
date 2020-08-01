@@ -54,6 +54,33 @@ class BookmarksStore(object):
             # Write the local file (TODO do this asynchronously)
             self._async_write()
 
+    def remove(self, bookmark_id):
+        if not self._bookmarks:
+            raise RuntimeError("Cannot remove bookmark, inner bookmarks collection is empty")
+
+        # Find parent dir of bookmark
+        root = {'guid': None, 'children': self._bookmarks}
+        dfs_stack = [(root, None)]
+        parent_dir = None
+        item = None
+        while dfs_stack:
+            item, parent_dir_candidate = dfs_stack.pop()
+            if item['guid'] == bookmark_id:
+                parent_dir = parent_dir_candidate
+                break
+            if 'children' in item:
+                for child in item['children']:
+                    dfs_stack.append((child, item))
+
+        if parent_dir is None:
+            raise RuntimeError("Cannot remove bookmark, inner bookmarks collection does not contain bookmark")
+
+        assert item in parent_dir["children"]
+
+        parent_dir['children'].remove(item)
+
+        self._async_write()
+
     def _list_bookmarks_callback(self, bookmarks_yaml):
         print("Bookmarks received from drive")
         #import pdb; pdb.set_trace()

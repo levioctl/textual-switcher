@@ -1,4 +1,5 @@
 from guiapps import defaultapp
+from gui.components import entriestree
 
 
 class ChooseParentBookmarksDir(defaultapp.DefaultApp):

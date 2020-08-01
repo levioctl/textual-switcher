@@ -10,7 +10,8 @@ from gui import listfilter
  COL_NR_WINDOW_ID,
  COL_NR_ENTRY_INFO_INT,
  COL_NR_ENTRY_INFO_STR,
- ) = range(6)
+ COL_NR_ENTRY_INFO_STR2,
+ ) = range(7)
 
 
 (RECORD_TYPE_WINDOW,
@@ -53,7 +54,7 @@ class EntriesTree(object):
         return tree_filter
 
     def _create_tree(self):
-        tree = Gtk.TreeStore(int, Pixbuf, str, int, int, str)
+        tree = Gtk.TreeStore(int, Pixbuf, str, int, int, str, str)
         tree.set_sort_func(1, self._compare_windows)
         tree.set_sort_column_id(1, Gtk.SortType.ASCENDING)
         return tree
@@ -123,7 +124,7 @@ class EntriesTree(object):
         NON_TAB_FLAG = -1
         for window in self._windows.values():
             window_row_label = window.get_label()
-            row = [RECORD_TYPE_WINDOW, window.icon, window.get_label(), window.get_xid(), NON_TAB_FLAG, ""]
+            row = [RECORD_TYPE_WINDOW, window.icon, window.get_label(), window.get_xid(), NON_TAB_FLAG, "", ""]
             row_iter = self.tree.append(None, row)
 
             if window.is_browser():
@@ -132,12 +133,12 @@ class EntriesTree(object):
 
         # Add the bookmarks row
         icon = gi.repository.GdkPixbuf.Pixbuf.new_from_file("/usr/share/textual-switcher/4096584-favorite-star_113762.ico")
-        row = [RECORD_TYPE_BOOKMARKS_ROOT, icon, "Bookmarks", 0, NON_TAB_FLAG, ""]
+        row = [RECORD_TYPE_BOOKMARKS_ROOT, icon, "Bookmarks", 0, NON_TAB_FLAG, "", ""]
         row_iter = self.tree.append(None, row)
         for bookmark in bookmarks:
             icon = gi.repository.GdkPixbuf.Pixbuf.new_from_file("/usr/share/textual-switcher/page_document_16748.ico")
             label = u"{} ({})".format(bookmark["name"], bookmark["url"])
-            row = [RECORD_TYPE_BOOKMARK_ENTRY, icon, label, 0, -1, bookmark['url']] 
+            row = [RECORD_TYPE_BOOKMARK_ENTRY, icon, label, 0, -1, bookmark['url'], bookmark['guid']] 
             self.tree.append(row_iter, row)
 
         self.enforce_expanded_mode(expanded_mode)
@@ -177,6 +178,7 @@ class EntriesTree(object):
                                   tab['title'],
                                   window.get_xid(),
                                   tab['id'],
+                                  "",
                                   ""
                                   ]
                                  )
