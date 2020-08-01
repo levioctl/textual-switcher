@@ -2,7 +2,7 @@ import gi
 gi.require_version('Gtk', '3.0')
 gi.require_version('GdkPixbuf', '2.0')
 from gi.repository import Gtk
-import windowcontrol
+from utils import windowcontrol
 
 
 class SearchTextbox(object):

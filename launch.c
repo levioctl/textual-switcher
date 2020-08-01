@@ -12,7 +12,7 @@
 
 static const char *PID_FILE_PATH_TEMPLATE = "/run/user/%d/textual-switcher.pid";
 static const char *PYTHON_EXE_PATH = "/usr/bin/python";
-static const char *SCRIPT_PATH = "/usr/share/textual-switcher/switcher.py";
+static const char *SCRIPT_PATH = "/usr/share/textual-switcher/main.py";
 
 
 void exec_switcher(char *pid_file_path)

@@ -2,7 +2,7 @@ import uuid
 import os.path
 import yaml
 import traceback
-import cloudfilesynchronizerthread
+from utils.drive import cloudfilesynchronizerthread
 
 
 class NotConnectedToCloudStorage(Exception): pass

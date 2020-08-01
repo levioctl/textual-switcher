@@ -5,7 +5,7 @@ gi.require_version('Wnck', '3.0')
 from gi.repository import Wnck, GLib
 
 import glib_wrappers
-import window
+from utils import window
 
 
 LIST_WINDOWS_COMMAND = ["wmctrl", "-lpx"]

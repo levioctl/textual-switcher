@@ -1,14 +1,10 @@
 import gi
 import os
-import sys
 import signal
-import subprocess
 gi.require_version('Gtk', '3.0')
 gi.require_version('GdkPixbuf', '2.0')
 from gi.repository.GdkPixbuf import Pixbuf, InterpType
 from gi.repository import Gtk, GdkX11, GLib
-import webbrowser
-import pidfile
 import tabcontrol
 import glib_wrappers
 import windowcontrol
@@ -17,123 +13,6 @@ import window_entry
 import bookmark_store
 import entriestree
 import searchtextbox
-
-
-class DefaultApp:
-    def __init__(self, switcher_window, _entriestree, status_textbox, _bookmark_store):
-        self._switcher_window = switcher_window
-        self._entriestree = _entriestree
-        self._status_label = status_textbox
-        self._bookmark_store = _bookmark_store
-        self._actions = {}
-        self._is_ctrl_pressed = False
-
-        self._actions[keycodes.KEYCODE_ARROW_DOWN] = self._switcher_window.select_next_item
-        self._actions[keycodes.KEYCODE_ARROW_UP] = self._switcher_window.select_previous_item
-        self._actions[keycodes.KEYCODE_ESCAPE] = lambda: sys.exit(0)
-        self._actions[keycodes.KEYCODE_D] = self._switcher_window.select_last_item
-        self._actions[keycodes.KEYCODE_J] = self._switcher_window.select_next_item
-        self._actions[keycodes.KEYCODE_K] = self._switcher_window.select_previous_item
-        self._actions[keycodes.KEYCODE_C] = lambda: self._switcher_window.set_visible(False)
-        self._actions[keycodes.KEYCODE_L] = self._refresh
-        self._actions[keycodes.KEYCODE_W] = lambda: self._switcher_window.empty_search_textbox()
-        self._actions[keycodes.KEYCODE_BACKSPACE] = self._term_selected_process
-        self._actions[keycodes.KEYCODE_BACKSLASH] = self._kill_selected_process
-        self._actions[keycodes.KEYCODE_H] = self._switcher_window.toggle_help_next
-        #self._actions[keycodes.KEYCODE_CTRL_HYPEN] = self._switcher_window.remove_selected_bookmark
-
-    def switch(self):
-        pass
-
-    def _kill_selected_process(self):
-        if self._is_ctrl_pressed:
-            self._switcher_window.send_signal_to_selected_process(signal.SIGKILL)
-
-    def _term_selected_process(self):
-        if self._is_ctrl_pressed:
-            self._switcher_window.send_signal_to_selected_process(signal.SIGTERM)
-
-    def _refresh(self):
-        self._switcher_window.async_list_windows()
-        self._entriestree.select_first_window()
-
-    def _toggle_expanded_mode(self):
-        self._switcher_window.expanded_mode = not self._switcher_window.expanded_mode
-        self._switcher_window.enforce_expanded_mode()
-
-    def _terminate(self):
-        self._switcher_window.send_signal_to_selected_process(signal.SIGTERM)
-
-    def handle_keypress(self, *args):
-        keycode = args[1].get_keycode()[1]
-        state = args[1].get_state()
-        self._is_ctrl_pressed = (state & state.CONTROL_MASK).bit_length() > 0
-        # Don't switch focus in case of up/down arrow
-        if keycode in self._actions:
-            self._actions[keycode]()
-
-
-class EntriesSearch(DefaultApp):
-    def __init__(self, *args, **kwrags):
-        DefaultApp.__init__(self, *args, **kwrags)
-        self._actions[keycodes.KEYCODE_CTRL_PLUS] = self._choose_parent_dir_for_adding_bookmark
-
-    def _choose_parent_dir_for_adding_bookmark(self):
-        # Get the tab dict in which url and title are stored
-        tab_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_INFO_INT)
-        window_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_WINDOW_ID)
-        window_pid = self._switcher_window._windows[window_id].get_pid()
-
-        # Find tab by ID
-        matching_tabs = [tab for tab in self._entriestree._tabs[window_pid] if tab['id'] == tab_id]
-        if not matching_tabs:
-            raise ValueError("Did not find a matching tab", tab_id, self._entriestree._tabs[window_pid])
-        elif len(matching_tabs) > 1:
-            raise ValueError("More than one matching tabs", tab_id, self._entriestree._tabs[window_pid])
-        tab = matching_tabs[0]
-
-        # Call switcher to add this as bookmark
-        self._switcher_window.choose_parent_dir_for_adding_bookmark(tab['title'], tab['url'])
-
-    def handle_entry_selection(self, *_):
-        record_type = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_RECORD_TYPE)
-        if record_type in (entriestree.RECORD_TYPE_BROWSER_TAB, entriestree.RECORD_TYPE_WINDOW):
-            window_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_WINDOW_ID)
-            if window_id is None:
-                return
-            try:
-                windowcontrol.focus_on_window(window_id)
-                # Setting the window to not visible causes Alt+Tab to avoid switcher (which is good)
-                self._switcher_window.set_visible(False)
-            except subprocess.CalledProcessError:
-                # Actual window list has changed since last reload
-                self.async_list_windows()
-            tab_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_INFO_INT)
-            is_tab = tab_id >= 0
-            if is_tab:
-                window = self._switcher_window._windows[window_id]
-                self._switcher_window._tabcontrol.async_move_to_tab(tab_id, window.get_pid())
-        elif record_type == entriestree.RECORD_TYPE_BOOKMARK_ENTRY:
-            url = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_INFO_STR)
-            webbrowser.open(url)
-
-
-class ChooseParentBookmarksDir(DefaultApp):
-    def __init__(self, *args, **kwargs):
-        DefaultApp.__init__(self, *args, **kwargs)
-        self._name = None
-        self._url = None
-
-    def switch(self, name, url):
-        self._bookmark_name = name
-        self._bookmark_url = url
-        self._status_label.set_text("Choose a parent bookmark dir")
-
-    def handle_entry_selection(self, *_):
-        parent_dir_entry_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_INFO_STR)
-        print("Adding bookmark...")
-        self._bookmark_store.add_bookmark(self._bookmark_url, self._bookmark_name, parent_dir_entry_id)
-        self._switcher_window._switch_app("entries_search")
 
 
 
@@ -376,24 +255,3 @@ class EntryWindow(Gtk.Window):
 
     def _get_tab_icon_callback(self, tab):
         return self._tabcontrol.get_tab_icon(tab)
-
-
-def show_window(window):
-    window.connect("delete-event", Gtk.main_quit)
-    window.show_all()
-    window.realize()
-
-
-if __name__ == "__main__":
-    # Not using an argument parser to not waste time in latency
-    if len(sys.argv) != 2:
-        print("Please specify the PID file as an argument")
-        sys.exit(1)
-
-    pid_filepath = sys.argv[1]
-    pidfile.create(pid_filepath)
-
-    window = EntryWindow()
-    show_window(window)
-
-    Gtk.main()

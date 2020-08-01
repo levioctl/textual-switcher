@@ -1,7 +1,7 @@
 import gi
 from gi.repository import Gtk
 from gi.repository.GdkPixbuf import Pixbuf, InterpType
-import listfilter
+from gui import listfilter
 
 
 (COL_NR_RECORD_TYPE,
