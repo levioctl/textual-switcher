@@ -15,12 +15,14 @@ class CloudFileSynchronizerThread(threading.Thread):
                  connected_callback,
                  disconnected_callback,
                  get_contents_callback,
-                 get_local_cache_callback):
+                 get_local_cache_callback,
+                 write_callback):
         self._filename = filename
         self._connected_callback = connected_callback
         self._disconnected_callback = disconnected_callback
         self._get_contents_callback = get_contents_callback
         self._get_local_cache_callback = get_local_cache_callback
+        self._write_callback = write_callback
         self._content = None
         self._cloud_file_synchronizer = None
         self._incoming_requests = Queue.Queue()
@@ -52,6 +54,7 @@ class CloudFileSynchronizerThread(threading.Thread):
 
                     print("Writing to cloud once")
                     self._cloud_file_synchronizer.write_to_remote_file()
+                    self._write_callback()
                 elif request['type'] == 'read':
                     contents = self._cloud_file_synchronizer.read_remote_file()
                     self._get_contents_callback(contents)

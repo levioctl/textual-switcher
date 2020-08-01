@@ -8,8 +8,8 @@ import listfilter
  COL_NR_ICON,
  COL_NR_TITLE,
  COL_NR_WINDOW_ID,
- COL_NR_TAB_ID,
- COL_NR_URL
+ COL_NR_ENTRY_INFO_INT,
+ COL_NR_ENTRY_INFO_STR,
  ) = range(6)
 
 
@@ -96,7 +96,7 @@ class EntriesTree(object):
             token = row[COL_NR_TITLE].decode('utf-8')
             window = self._windows[window_id]
             if window.get_pid() in self._tabs:
-                tab_id = row[COL_NR_TAB_ID]
+                tab_id = row[COL_NR_ENTRY_INFO_STR]
                 is_tab = tab_id >= 0
                 if window.is_browser() and not is_tab:
                     tabs = self._tabs[window.get_pid()]
@@ -123,7 +123,7 @@ class EntriesTree(object):
         NON_TAB_FLAG = -1
         for window in self._windows.values():
             window_row_label = window.get_label()
-            row = [RECORD_TYPE_WINDOW, window.icon, window.get_label(), window.get_xid(), NON_TAB_FLAG, None]
+            row = [RECORD_TYPE_WINDOW, window.icon, window.get_label(), window.get_xid(), NON_TAB_FLAG, ""]
             row_iter = self.tree.append(None, row)
 
             if window.is_browser():
@@ -132,12 +132,13 @@ class EntriesTree(object):
 
         # Add the bookmarks row
         icon = gi.repository.GdkPixbuf.Pixbuf.new_from_file("/usr/share/textual-switcher/4096584-favorite-star_113762.ico")
-        row = [RECORD_TYPE_BOOKMARKS_ROOT, icon, "Bookmarks", 0, NON_TAB_FLAG, None]
+        row = [RECORD_TYPE_BOOKMARKS_ROOT, icon, "Bookmarks", 0, NON_TAB_FLAG, ""]
         row_iter = self.tree.append(None, row)
-        for url, title in bookmarks:
+        for bookmark in bookmarks:
             icon = gi.repository.GdkPixbuf.Pixbuf.new_from_file("/usr/share/textual-switcher/page_document_16748.ico")
-            label = u"{} ({})".format(title, url)
-            self.tree.append(row_iter, [RECORD_TYPE_BOOKMARK_ENTRY, icon, label, 0, NON_TAB_FLAG, url])
+            label = u"{} ({})".format(bookmark["name"], bookmark["url"])
+            row = [RECORD_TYPE_BOOKMARK_ENTRY, icon, label, 0, -1, bookmark['url']] 
+            self.tree.append(row_iter, row)
 
         self.enforce_expanded_mode(expanded_mode)
         self.select_first_window()
@@ -170,7 +171,15 @@ class EntriesTree(object):
                     icon = window.icon
                 else:
                     icon = icon.scale_simple(ICON_SIZE, ICON_SIZE, InterpType.BILINEAR)
-                self.tree.append(row_iter, [RECORD_TYPE_BROWSER_TAB, icon, tab['title'], window.get_xid(), tab['id'], tab['url']])
+                self.tree.append(row_iter,
+                                 [RECORD_TYPE_BROWSER_TAB,
+                                  icon,
+                                  tab['title'],
+                                  window.get_xid(),
+                                  tab['id'],
+                                  ""
+                                  ]
+                                 )
 
     def select_first_tab_under_selected_window(self):
         # A bit of nasty GTK hackery

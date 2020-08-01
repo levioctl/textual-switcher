@@ -20,9 +20,11 @@ import searchtextbox
 
 
 class DefaultApp:
-    def __init__(self, switcher_window, _entriestree):
+    def __init__(self, switcher_window, _entriestree, status_textbox, _bookmark_store):
         self._switcher_window = switcher_window
         self._entriestree = _entriestree
+        self._status_label = status_textbox
+        self._bookmark_store = _bookmark_store
         self._actions = {}
         self._is_ctrl_pressed = False
 
@@ -38,8 +40,10 @@ class DefaultApp:
         self._actions[keycodes.KEYCODE_BACKSPACE] = self._term_selected_process
         self._actions[keycodes.KEYCODE_BACKSLASH] = self._kill_selected_process
         self._actions[keycodes.KEYCODE_H] = self._switcher_window.toggle_help_next
-        self._actions[keycodes.KEYCODE_CTRL_PLUS] = self._switcher_window.add_selection_as_bookmark
         #self._actions[keycodes.KEYCODE_CTRL_HYPEN] = self._switcher_window.remove_selected_bookmark
+
+    def switch(self):
+        pass
 
     def _kill_selected_process(self):
         if self._is_ctrl_pressed:
@@ -68,6 +72,29 @@ class DefaultApp:
         if keycode in self._actions:
             self._actions[keycode]()
 
+
+class EntriesSearch(DefaultApp):
+    def __init__(self, *args, **kwrags):
+        DefaultApp.__init__(self, *args, **kwrags)
+        self._actions[keycodes.KEYCODE_CTRL_PLUS] = self._choose_parent_dir_for_adding_bookmark
+
+    def _choose_parent_dir_for_adding_bookmark(self):
+        # Get the tab dict in which url and title are stored
+        tab_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_INFO_INT)
+        window_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_WINDOW_ID)
+        window_pid = self._switcher_window._windows[window_id].get_pid()
+
+        # Find tab by ID
+        matching_tabs = [tab for tab in self._entriestree._tabs[window_pid] if tab['id'] == tab_id]
+        if not matching_tabs:
+            raise ValueError("Did not find a matching tab", tab_id, self._entriestree._tabs[window_pid])
+        elif len(matching_tabs) > 1:
+            raise ValueError("More than one matching tabs", tab_id, self._entriestree._tabs[window_pid])
+        tab = matching_tabs[0]
+
+        # Call switcher to add this as bookmark
+        self._switcher_window.choose_parent_dir_for_adding_bookmark(tab['title'], tab['url'])
+
     def handle_entry_selection(self, *_):
         record_type = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_RECORD_TYPE)
         if record_type in (entriestree.RECORD_TYPE_BROWSER_TAB, entriestree.RECORD_TYPE_WINDOW):
@@ -81,24 +108,33 @@ class DefaultApp:
             except subprocess.CalledProcessError:
                 # Actual window list has changed since last reload
                 self.async_list_windows()
-            tab_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_TAB_ID)
+            tab_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_INFO_INT)
             is_tab = tab_id >= 0
             if is_tab:
                 window = self._switcher_window._windows[window_id]
                 self._switcher_window._tabcontrol.async_move_to_tab(tab_id, window.get_pid())
         elif record_type == entriestree.RECORD_TYPE_BOOKMARK_ENTRY:
-            url = selected_window_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_URL)
+            url = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_INFO_STR)
             webbrowser.open(url)
-
-
-class EntriesSearch(DefaultApp):
-    def __init__(self, *args, **kwrags):
-        DefaultApp.__init__(self, *args, **kwrags)
 
 
 class ChooseParentBookmarksDir(DefaultApp):
     def __init__(self, *args, **kwargs):
-            DefaultApp.__init__(self, *args, **kwargs)
+        DefaultApp.__init__(self, *args, **kwargs)
+        self._name = None
+        self._url = None
+
+    def switch(self, name, url):
+        self._bookmark_name = name
+        self._bookmark_url = url
+        self._status_label.set_text("Choose a parent bookmark dir")
+
+    def handle_entry_selection(self, *_):
+        parent_dir_entry_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_INFO_STR)
+        print("Adding bookmark...")
+        self._bookmark_store.add_bookmark(self._bookmark_url, self._bookmark_name, parent_dir_entry_id)
+        self._switcher_window._switch_app("entries_search")
+
 
 
 class EntryWindow(Gtk.Window):
@@ -129,27 +165,35 @@ class EntryWindow(Gtk.Window):
         self._entriestree = entriestree.EntriesTree(self._entry_selected_callback,
                                                     self._treeview_keypress,
                                                     self._get_tab_icon_callback)
+        self._status_label = self._create_status_label()
+        self._bookmark_store = bookmark_store.BookmarksStore(self._list_bookmarks_callback,
+                                                              self._connected_to_cloud_callback,
+                                                              lambda: None)
 
         # Gui Apps (different modes for the same window layout)
-        self._gui_apps = {'entries_search': EntriesSearch(self, self._entriestree),
-                          'choose_parent_bookmarks_dir_app': ChooseParentBookmarksDir(self, self._entriestree)
+        self._gui_apps = {'entries_search': EntriesSearch(self,
+                                                          self._entriestree,
+                                                          self._status_label,
+                                                          self._bookmark_store),
+                          'choose_parent_bookmarks_dir_app': ChooseParentBookmarksDir(self,
+                                                                                      self._entriestree,
+                                                                                      self._status_label,
+                                                                                      self._bookmark_store)
         }
         self._current_app = self._gui_apps['entries_search']
 
         self._search_textbox = searchtextbox.SearchTextbox(self._current_app.handle_keypress,
                                                            self._entry_selected_callback,
-                                                           self._entriestree)
+                                                           self._entriestree,
+                                                           )
         self._entriestree.select_first_window()
         self._tabcontrol = tabcontrol.TabControl(self._update_tabs_callback, self._tab_icon_ready)
         glib_wrappers.register_signal(self._focus_on_me, signal.SIGHUP)
         self._set_window_properties()
-        self._bookmarks_store = bookmark_store.BookmarksStore(self._list_bookmarks_callback,
-                                                              self._connected_to_cloud_callback,
-                                                              lambda: None)
         self._help_label = self._create_help_label()
-        self._status_label = self._create_status_label()
 
         self._add_gui_components_to_window()
+        print("Listing windows...")
         self.async_list_windows()
         self.expanded_mode = True
 
@@ -230,7 +274,7 @@ class EntryWindow(Gtk.Window):
     def async_list_windows(self):
         windowcontrol.async_list_windows(callback=self._update_windows_listbox_callback)
         self._status_label.set_text("Bookmarks: Reading from drive...")
-        self._bookmarks_store.async_list_bookmarks()
+        self._bookmark_store.async_list_bookmarks()
 
     def select_last_item(self):
         cursor = self._entriestree.treeview.get_cursor()[0]
@@ -323,10 +367,12 @@ class EntryWindow(Gtk.Window):
 
         GLib.timeout_add(0, update_bookmarks)
 
-    def add_selection_as_bookmark(self):
-        url = selected_window_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_URL)
-        title = selected_window_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_TITLE)
-        self._bookmarks_store.add_bookmark(url, title)
+    def choose_parent_dir_for_adding_bookmark(self, name, url):
+        self._switch_app("choose_parent_bookmarks_dir_app", name, url)
+
+    def _switch_app(self, app_name, *args, **kwargs):
+        self._current_app = self._gui_apps[app_name]
+        self._current_app.switch(*args, **kwargs)
 
     def _get_tab_icon_callback(self, tab):
         return self._tabcontrol.get_tab_icon(tab)

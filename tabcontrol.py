@@ -146,8 +146,6 @@ class BrowserTabLister(object):
             self._is_updated = False
             self._is_new_list_tab_request = True
 
-            #print("{}: already updated".format(self.in_fd))
-
             # Schedule tablist in thread
             self._activate_callback_for_one_message_from_api_proxy()
             if self._is_new_list_tab_request:
