@@ -4,10 +4,10 @@ from gui import keycodes
 
 
 class DefaultApp:
-    def __init__(self, switcher_window, _entriestree, status_textbox, _bookmark_store):
+    def __init__(self, switcher_window, _entriestree, status_label, _bookmark_store):
         self._switcher_window = switcher_window
         self._entriestree = _entriestree
-        self._status_label = status_textbox
+        self._status_label = status_label
         self._bookmark_store = _bookmark_store
         self._actions = {True: {}, False: {}}
         self._is_ctrl_pressed = False

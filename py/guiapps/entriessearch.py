@@ -55,3 +55,4 @@ class EntriesSearch(defaultapp.DefaultApp):
         if record_type == entriestree.RECORD_TYPE_BOOKMARK_ENTRY:
             bookmark_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_INFO_STR2)
             self._switcher_window._bookmark_store.remove(bookmark_id)
+            self._status_label.set_text("Removing bookmark...")
