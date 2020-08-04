@@ -60,6 +60,7 @@ class CloudFileSynchronizerThread(threading.Thread):
                     self._get_contents_callback(contents)
 
                 elif request['type'] == 'read_cache':
+                    print("Reading local cache...")
                     try:
                         with open(self._filename) as local_file:
                             contents = local_file.read()

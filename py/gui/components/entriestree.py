@@ -25,8 +25,11 @@ ICON_SIZE = 25
 
 
 class EntriesTree(object):
-
-    def __init__(self, window_selected_callback, treeview_keypress, get_tab_icon_callback):
+    def __init__(self,
+                 row_activated_callback,
+                 treeview_keypress,
+                 get_tab_icon_callback,
+                 row_selected_callback):
         self._windows = {}
         self._tabs = {}
         self._get_tab_icon_callback = get_tab_icon_callback
@@ -35,8 +38,9 @@ class EntriesTree(object):
         self.treefilter = self._create_tree_filter()
         self.treeview = Gtk.TreeView.new_with_model(self.treefilter)
         self.treeview.set_headers_visible(False)
-        self.treeview.connect("row-activated", window_selected_callback)
+        self.treeview.connect("row-activated", row_activated_callback)
         self.treeview.connect("key-press-event", treeview_keypress)
+        self.treeview.connect("cursor-changed", row_selected_callback)
         columns = {COL_NR_ICON: "Icon",
                     COL_NR_TITLE: "Title"}
         for i, column_title in columns.iteritems():

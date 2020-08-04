@@ -9,23 +9,23 @@ class DefaultApp:
         self._entriestree = _entriestree
         self._status_label = status_label
         self._bookmark_store = _bookmark_store
-        self._actions = {True: {}, False: {}}
         self._is_ctrl_pressed = False
-
-        self._actions[True][keycodes.KEYCODE_ARROW_DOWN] = self._switcher_window.select_next_item
-        self._actions[True][keycodes.KEYCODE_ARROW_UP] = self._switcher_window.select_previous_item
-        self._actions[False][keycodes.KEYCODE_ARROW_DOWN] = self._switcher_window.select_next_item
-        self._actions[False][keycodes.KEYCODE_ARROW_UP] = self._switcher_window.select_previous_item
-        self._actions[False][keycodes.KEYCODE_ESCAPE] = lambda: sys.exit(0)
-        self._actions[True][keycodes.KEYCODE_D] = self._switcher_window.select_last_item
-        self._actions[True][keycodes.KEYCODE_J] = self._switcher_window.select_next_item
-        self._actions[True][keycodes.KEYCODE_K] = self._switcher_window.select_previous_item
-        self._actions[True][keycodes.KEYCODE_C] = lambda: self._switcher_window.set_visible(False)
-        self._actions[True][keycodes.KEYCODE_L] = self._refresh
-        self._actions[True][keycodes.KEYCODE_W] = lambda: self._switcher_window.empty_search_textbox()
-        self._actions[True][keycodes.KEYCODE_BACKSPACE] = self._term_selected_process
-        self._actions[True][keycodes.KEYCODE_BACKSLASH] = self._kill_selected_process
-        self._actions[True][keycodes.KEYCODE_H] = self._switcher_window.toggle_help_next
+        self._is_shift_pressed = False
+        self._actions = {keycodes.KEYCODE_ARROW_DOWN    : self._switcher_window.select_next_item,
+                         keycodes.KEYCODE_ARROW_UP      : self._switcher_window.select_previous_item,
+                         keycodes.KEYCODE_ARROW_DOWN    : self._switcher_window.select_next_item,
+                         keycodes.KEYCODE_ARROW_UP      : self._switcher_window.select_previous_item,
+                         keycodes.KEYCODE_ESCAPE        : lambda: sys.exit(0),
+                         keycodes.KEYCODE_CTRL_D        : self._switcher_window.select_last_item,
+                         keycodes.KEYCODE_CTRL_J        : self._switcher_window.select_next_item,
+                         keycodes.KEYCODE_CTRL_K        : self._switcher_window.select_previous_item,
+                         keycodes.KEYCODE_CTRL_C        : lambda: self._switcher_window.set_visible(False),
+                         keycodes.KEYCODE_CTRL_L        : self._refresh,
+                         keycodes.KEYCODE_CTRL_W        : lambda: self._switcher_window.empty_search_textbox(),
+                         keycodes.KEYCODE_CTRL_BACKSPACE: self._term_selected_process,
+                         keycodes.KEYCODE_CTRL_BACKSLASH: self._kill_selected_process,
+                         keycodes.KEYCODE_CTRL_H        : self._switcher_window.toggle_help_next
+        }
 
     def switch(self):
         pass
@@ -53,8 +53,15 @@ class DefaultApp:
         keycode = args[1].get_keycode()[1]
         state = args[1].get_state()
         self._is_ctrl_pressed = (state & state.CONTROL_MASK).bit_length() > 0
+        self._is_shift_pressed = (state & state.SHIFT_MASK).bit_length() > 0
+        keycode = (self._is_ctrl_pressed, self._is_shift_pressed, keycode)
         # Don't switch focus in case of up/down arrow
-        print(keycode, self._is_ctrl_pressed)
-        if keycode in self._actions[self._is_ctrl_pressed]:
-            action = self._actions[self._is_ctrl_pressed][keycode]
+        if keycode in self._actions:
+            action = self._actions[keycode]
             action()
+
+    def handle_entry_activation(self):
+        pass
+
+    def handle_entry_selection(self):
+        pass

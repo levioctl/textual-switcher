@@ -8,8 +8,8 @@ from gui.components import entriestree
 class EntriesSearch(defaultapp.DefaultApp):
     def __init__(self, *args, **kwrags):
         defaultapp.DefaultApp.__init__(self, *args, **kwrags)
-        self._actions[True][keycodes.KEYCODE_PLUS] = self._choose_parent_dir_for_adding_bookmark
-        self._actions[True][keycodes.KEYCODE_HYPEN] = self._remove_bookmark
+        self._actions[keycodes.KEYCODE_CTRL_PLUS] = self._choose_parent_dir_for_adding_bookmark
+        self._actions[keycodes.KEYCODE_CTRL_HYPHEN] = self._remove_bookmark
 
     def _choose_parent_dir_for_adding_bookmark(self):
         # Get the tab dict in which url and title are stored
@@ -28,7 +28,7 @@ class EntriesSearch(defaultapp.DefaultApp):
         # Call switcher to add this as bookmark
         self._switcher_window.choose_parent_dir_for_adding_bookmark(tab['title'], tab['url'])
 
-    def handle_entry_selection(self, *_):
+    def handle_entry_activation(self, *_):
         record_type = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_RECORD_TYPE)
         if record_type in (entriestree.RECORD_TYPE_BROWSER_TAB, entriestree.RECORD_TYPE_WINDOW):
             window_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_WINDOW_ID)
@@ -49,6 +49,11 @@ class EntriesSearch(defaultapp.DefaultApp):
         elif record_type == entriestree.RECORD_TYPE_BOOKMARK_ENTRY:
             url = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_INFO_STR)
             webbrowser.open(url)
+
+    def handle_entry_selection(self):
+        record_type = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_RECORD_TYPE)
+        if record_type in (entriestree.RECORD_TYPE_BOOKMARK_ENTRY, entriestree.RECORD_TYPE_BOOKMARKS_ROOT):
+            self._switcher_window._switch_app("bookmarks_search")
 
     def _remove_bookmark(self):
         record_type = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_RECORD_TYPE)

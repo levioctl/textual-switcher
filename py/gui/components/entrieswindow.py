@@ -9,7 +9,7 @@ from gi.repository import Gtk, GdkX11, GLib
 from utils import windowcontrol, window_entry, tabcontrol, glib_wrappers, bookmark_store
 from gui import keycodes
 from gui.components import entriestree, searchtextbox
-from guiapps import entriessearch, chooseparentbookmarksdir
+from guiapps import entriessearch, chooseparentbookmarksdir, bookmarkssearch
 
 
 
@@ -28,9 +28,6 @@ class EntryWindow(Gtk.Window):
                       "Ctrl+H: Toggle Help")
     SHORT_HELP_TEXT = "Ctrl+H: Toggle Help"
 
-    def _entry_selected_callback(self, *_):
-        self._current_app.handle_entry_selection()
-
     def __init__(self):
         Gtk.Window.__init__(self, title=self.WINDOW_TITLE)
         self._xid = None
@@ -38,9 +35,10 @@ class EntryWindow(Gtk.Window):
         self._tabs = {}
         self._bookmarks = []
 
-        self._entriestree = entriestree.EntriesTree(self._entry_selected_callback,
+        self._entriestree = entriestree.EntriesTree(self._entry_activated_callback,
                                                     self._treeview_keypress,
-                                                    self._get_tab_icon_callback)
+                                                    self._get_tab_icon_callback,
+                                                    self._entry_selected_callback)
         self._status_label = self._create_status_label()
         self._bookmark_store = bookmark_store.BookmarksStore(self._list_bookmarks_callback,
                                                               self._connected_to_cloud_callback,
@@ -51,15 +49,20 @@ class EntryWindow(Gtk.Window):
                                                           self._entriestree,
                                                           self._status_label,
                                                           self._bookmark_store),
+                          'bookmarks_search': bookmarkssearch.BookmarksSearch(self,
+                                                                              self._entriestree,
+                                                                              self._status_label,
+                                                                              self._bookmark_store),
                           'choose_parent_bookmarks_dir_app': chooseparentbookmarksdir.ChooseParentBookmarksDir(self,
                                                                                       self._entriestree,
                                                                                       self._status_label,
                                                                                       self._bookmark_store)
         }
+        print("Switching to entries_search")
         self._current_app = self._gui_apps['entries_search']
 
-        self._search_textbox = searchtextbox.SearchTextbox(self._current_app.handle_keypress,
-                                                           self._entry_selected_callback,
+        self._search_textbox = searchtextbox.SearchTextbox(self._handle_keypress,
+                                                           self._entry_activated_callback,
                                                            self._entriestree,
                                                            )
         self._entriestree.select_first_window()
@@ -73,8 +76,6 @@ class EntryWindow(Gtk.Window):
         self.async_list_windows()
         self.expanded_mode = True
 
-    def move_to_gui_app(self, gui_app_name):
-        self._current_app = self._gui_apps[gui_app_name]
     def _set_window_properties(self):
         self.set_size_request(500, 500)
         self.set_position(Gtk.WindowPosition.CENTER)
@@ -247,8 +248,18 @@ class EntryWindow(Gtk.Window):
         self._switch_app("choose_parent_bookmarks_dir_app", name, url)
 
     def _switch_app(self, app_name, *args, **kwargs):
+        print("Switching to {}".format(app_name))
         self._current_app = self._gui_apps[app_name]
         self._current_app.switch(*args, **kwargs)
 
     def _get_tab_icon_callback(self, tab):
         return self._tabcontrol.get_tab_icon(tab)
+
+    def _entry_activated_callback(self, *_):
+        self._current_app.handle_entry_activation()
+
+    def _entry_selected_callback(self, *_):
+        self._current_app.handle_entry_selection()
+
+    def _handle_keypress(self, *args):
+        self._current_app.handle_keypress(*args)

@@ -13,7 +13,7 @@ class ChooseParentBookmarksDir(defaultapp.DefaultApp):
         self._bookmark_url = url
         self._status_label.set_text("Choose a parent bookmark dir")
 
-    def handle_entry_selection(self, *_):
+    def handle_entry_activation(self, *_):
         parent_dir_entry_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_INFO_STR)
         print("Adding bookmark...")
         self._status_label.set_text("Adding bookmark...")
