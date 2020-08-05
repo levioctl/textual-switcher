@@ -61,16 +61,23 @@ class EntryWindow(Gtk.Window):
         print("Switching to entries_search")
         self._current_app = self._gui_apps['entries_search']
 
+        print("700")
         self._search_textbox = searchtextbox.SearchTextbox(self._handle_keypress,
                                                            self._entry_activated_callback,
                                                            self._entriestree,
                                                            )
+        print("600")
         self._entriestree.select_first_window()
+        print("500")
         self._tabcontrol = tabcontrol.TabControl(self._update_tabs_callback, self._tab_icon_ready)
+        print("400")
         glib_wrappers.register_signal(self._focus_on_me, signal.SIGHUP)
+        print("300")
         self._set_window_properties()
+        print("200")
         self._help_label = self._create_help_label()
 
+        print("100")
         self._add_gui_components_to_window()
         print("Listing windows...")
         self.async_list_windows()

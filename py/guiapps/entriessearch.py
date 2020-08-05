@@ -29,30 +29,25 @@ class EntriesSearch(defaultapp.DefaultApp):
         self._switcher_window.choose_parent_dir_for_adding_bookmark(tab['title'], tab['url'])
 
     def handle_entry_activation(self, *_):
-        record_type = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_RECORD_TYPE)
-        if record_type in (entriestree.RECORD_TYPE_BROWSER_TAB, entriestree.RECORD_TYPE_WINDOW):
-            window_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_WINDOW_ID)
-            if window_id is None:
-                return
-            try:
-                windowcontrol.focus_on_window(window_id)
-                # Setting the window to not visible causes Alt+Tab to avoid switcher (which is good)
-                self._switcher_window.set_visible(False)
-            except subprocess.CalledProcessError:
-                # Actual window list has changed since last reload
-                self.async_list_windows()
-            tab_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_INFO_INT)
-            is_tab = tab_id >= 0
-            if is_tab:
-                window = self._switcher_window._windows[window_id]
-                self._switcher_window._tabcontrol.async_move_to_tab(tab_id, window.get_pid())
-        elif record_type == entriestree.RECORD_TYPE_BOOKMARK_ENTRY:
-            url = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_INFO_STR)
-            webbrowser.open(url)
+        window_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_WINDOW_ID)
+        if window_id is None:
+            return
+        try:
+            windowcontrol.focus_on_window(window_id)
+            # Setting the window to not visible causes Alt+Tab to avoid switcher (which is good)
+            self._switcher_window.set_visible(False)
+        except subprocess.CalledProcessError:
+            # Actual window list has changed since last reload
+            self.async_list_windows()
+        tab_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_INFO_INT)
+        is_tab = tab_id >= 0
+        if is_tab:
+            window = self._switcher_window._windows[window_id]
+            self._switcher_window._tabcontrol.async_move_to_tab(tab_id, window.get_pid())
 
     def handle_entry_selection(self):
         record_type = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_RECORD_TYPE)
-        if record_type in (entriestree.RECORD_TYPE_BOOKMARK_ENTRY, entriestree.RECORD_TYPE_BOOKMARKS_ROOT):
+        if record_type in (entriestree.RECORD_TYPE_BOOKMARK_ENTRY, entriestree.RECORD_TYPE_BOOKMARKS_DIR):
             self._switcher_window._switch_app("bookmarks_search")
 
     def _remove_bookmark(self):

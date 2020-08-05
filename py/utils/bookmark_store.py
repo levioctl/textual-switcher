@@ -58,14 +58,52 @@ class BookmarksStore(object):
         if not self._bookmarks:
             raise RuntimeError("Cannot remove bookmark, inner bookmarks collection is empty")
 
+        item = self.get_parent_of_entry(bookmark_id)
+        if item == 'ROOT':
+            self._bookmarks.remove(item)
+        elif item is None:
+            raise ValueError("Did not find a bookmark with GUID: {}".format(bookmark_id))
+        else:
+            parent_dir['children'].remove(item)
+
+        self._async_write()
+
+    def add_folder(self, parent_folder_guid):
+        is_parent_folder_root_folder = parent_folder_guid == 'ROOT'
+
+        # Validate parent folder
+        if not is_parent_folder_root_folder:
+            if parent_folder_guid not in self._bookmarks:
+                raise ValueError("Cannot add folder, parent guid not found", parent_folder_guid)
+
+            if 'url' in self._bookmarks[parent_folder_guid]:
+                raise ValueError("Cannot add folder, parent guid not found", parent_folder_guid)
+
+        # Generate folder
+        folder = {'name': 'blabla', 'guid': uuid.uuid4().hex}
+
+        if is_parent_folder_root_folder:
+            self._bookmarks.append(folder)
+        else:
+            self._bookmarks['children'].append(folder)
+
+        self._async_write()
+            
+
+    def get_parent_of_entry(self, guid):
+        """Get parent entry of the entry with the given GUID.
+
+        If parent is root, return 'ROOT'.
+        If GUID does not exist, return None.
+        """
         # Find parent dir of bookmark
-        root = {'guid': None, 'children': self._bookmarks}
+        root = {'guid': "ROOT", 'children': self._bookmarks}
         dfs_stack = [(root, None)]
         parent_dir = None
         item = None
         while dfs_stack:
             item, parent_dir_candidate = dfs_stack.pop()
-            if item['guid'] == bookmark_id:
+            if item['guid'] == guid:
                 parent_dir = parent_dir_candidate
                 break
             if 'children' in item:
@@ -77,13 +115,10 @@ class BookmarksStore(object):
 
         assert item in parent_dir["children"]
 
-        parent_dir['children'].remove(item)
-
-        self._async_write()
+        return parent_dir
 
     def _list_bookmarks_callback(self, bookmarks_yaml):
         print("Bookmarks received from drive")
-        #import pdb; pdb.set_trace()
         bookmarks_yaml = bookmarks_yaml.decode('utf-8')
         self._update_local_copy(bookmarks_yaml)
 

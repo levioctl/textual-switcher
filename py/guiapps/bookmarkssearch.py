@@ -1,3 +1,4 @@
+import webbrowser
 from gui import keycodes
 from guiapps import entriessearch
 from gui.components import entriestree
@@ -9,9 +10,25 @@ class BookmarksSearch(entriessearch.EntriesSearch):
         self._actions[keycodes.KEYCODE_CTRL_SHIFT_N] = self._add_folder
 
     def _add_folder(self):
-        print("adding folder")
+        # Choose parent folder.
+
+        # If selected entry is a URL, parent folder will be parent of selected entry.
+        record_type = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_RECORD_TYPE)
+        selected_entry_guid = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_INFO_STR2)
+        if record_type == entriestree.RECORD_TYPE_BOOKMARK_ENTRY:
+            parent_folder = self._bookmark_store.get_parent_of_entry(selected_entry_guid)
+            parent_folder_guid = parent_folder['guid']
+        # If selected entry is a folder, parent folder will be that folder
+        elif record_type == entriestree.RECORD_TYPE_BOOKMARKS_DIR:
+            parent_folder_guid = selected_entry_guid
+
+        self._bookmark_store.add_folder(parent_folder_guid=parent_folder_guid)
 
     def handle_entry_selection(self):
         record_type = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_RECORD_TYPE)
         if record_type in (entriestree.RECORD_TYPE_BROWSER_TAB, entriestree.RECORD_TYPE_WINDOW):
             self._switcher_window._switch_app("entries_search")
+
+    def handle_entry_activation(self):
+        url = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_INFO_STR2)
+        webbrowser.open(url)

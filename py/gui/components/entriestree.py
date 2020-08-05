@@ -16,8 +16,8 @@ from gui import listfilter
 
 (RECORD_TYPE_WINDOW,
  RECORD_TYPE_BROWSER_TAB,
- RECORD_TYPE_BOOKMARKS_ROOT,
- RECORD_TYPE_BOOKMARK_ENTRY
+ RECORD_TYPE_BOOKMARK_ENTRY,
+ RECORD_TYPE_BOOKMARKS_DIR,
  ) = range(4)
 
 
@@ -137,12 +137,16 @@ class EntriesTree(object):
 
         # Add the bookmarks row
         icon = gi.repository.GdkPixbuf.Pixbuf.new_from_file("/usr/share/textual-switcher/4096584-favorite-star_113762.ico")
-        row = [RECORD_TYPE_BOOKMARKS_ROOT, icon, "Bookmarks", 0, NON_TAB_FLAG, "", ""]
+        row = [RECORD_TYPE_BOOKMARKS_DIR, icon, "Bookmarks", 0, NON_TAB_FLAG, "", "ROOT"]
         row_iter = self.tree.append(None, row)
         for bookmark in bookmarks:
             icon = gi.repository.GdkPixbuf.Pixbuf.new_from_file("/usr/share/textual-switcher/page_document_16748.ico")
-            label = u"{} ({})".format(bookmark["name"], bookmark["url"])
-            row = [RECORD_TYPE_BOOKMARK_ENTRY, icon, label, 0, -1, bookmark['url'], bookmark['guid']] 
+            if "url" in bookmark:
+                label = u"{} ({})".format(bookmark["name"], bookmark["url"])
+                row = [RECORD_TYPE_BOOKMARK_ENTRY, icon, label, 0, -1, bookmark['url'], bookmark['guid']] 
+            else:
+                label = bookmark["name"]
+                row = [RECORD_TYPE_BOOKMARKS_DIR, icon, label, 0, -1, bookmark['name'], bookmark['guid']] 
             self.tree.append(row_iter, row)
 
         self.enforce_expanded_mode(expanded_mode)

@@ -26,11 +26,16 @@ class CloudFileSynchronizerThread(threading.Thread):
         self._content = None
         self._cloud_file_synchronizer = None
         self._incoming_requests = Queue.Queue()
+        self._local_cache = None
         super(CloudFileSynchronizerThread, self).__init__()
         self.daemon = True
         self.start()
 
     def run(self):
+        contents = self._read_cache_once()
+        if contents is not None:
+            self._get_local_cache_callback(contents)
+
         while True:
             # Connect if needed
             if not self._is_connected():
@@ -58,18 +63,23 @@ class CloudFileSynchronizerThread(threading.Thread):
                 elif request['type'] == 'read':
                     contents = self._cloud_file_synchronizer.read_remote_file()
                     self._get_contents_callback(contents)
-
                 elif request['type'] == 'read_cache':
-                    print("Reading local cache...")
-                    try:
-                        with open(self._filename) as local_file:
-                            contents = local_file.read()
+                    contents = self._read_cache_once(contents)
+                    if contents is not None:
                         self._get_local_cache_callback(contents)
-                    except:
-                        print("Could not read bookmarks from local cache: {}".format(traceback.format_exc()))
             except Exception as ex:
                 print("Cloud connection failed: {}".format(traceback.format_exc()))
                 self._disconnected_callback()
+
+    def _read_cache_once(self):
+        print("Reading local cache...")
+        contents = None
+        try:
+            with open(self._filename) as local_file:
+                contents = local_file.read()
+        except:
+            print("Could not read bookmarks from local cache: {}".format(traceback.format_exc()))
+        return contents
 
     def _is_connected(self):
         return self._cloud_file_synchronizer is not None
@@ -82,6 +92,9 @@ class CloudFileSynchronizerThread(threading.Thread):
 
     def async_read_local_cache(self):
         self._incoming_requests.put({'type': 'read_cache'}, block=True)
+
+    def get_current_cache(self):
+        return self._local_cache
 
     def _connect(self):
         self._cloud_file_synchronizer = gdrive_client.GoogleDriveFileSynchronizer(self._filename,
