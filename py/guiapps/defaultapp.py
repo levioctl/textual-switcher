@@ -24,7 +24,8 @@ class DefaultApp:
                          keycodes.KEYCODE_CTRL_W        : lambda: self._switcher_window.empty_search_textbox(),
                          keycodes.KEYCODE_CTRL_BACKSPACE: self._term_selected_process,
                          keycodes.KEYCODE_CTRL_BACKSLASH: self._kill_selected_process,
-                         keycodes.KEYCODE_CTRL_H        : self._switcher_window.toggle_help_next
+                         keycodes.KEYCODE_CTRL_H        : self._switcher_window.toggle_help_next,
+                         keycodes.KEYCODE_CTRL_SPACE    : self._toggle_expanded_mode
         }
 
     def switch(self):
@@ -55,7 +56,7 @@ class DefaultApp:
         self._is_ctrl_pressed = (state & state.CONTROL_MASK).bit_length() > 0
         self._is_shift_pressed = (state & state.SHIFT_MASK).bit_length() > 0
         keycode = (self._is_ctrl_pressed, self._is_shift_pressed, keycode)
-        # Don't switch focus in case of up/down arrow
+        print(keycode)
         if keycode in self._actions:
             action = self._actions[keycode]
             action()

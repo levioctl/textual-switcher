@@ -58,7 +58,6 @@ class EntryWindow(Gtk.Window):
                                                                                       self._status_label,
                                                                                       self._bookmark_store)
         }
-        print("Switching to entries_search")
         self._current_app = self._gui_apps['entries_search']
 
         self._search_textbox = searchtextbox.SearchTextbox(self._handle_keypress,
@@ -248,7 +247,6 @@ class EntryWindow(Gtk.Window):
         self._switch_app("choose_parent_bookmarks_dir_app", name, url)
 
     def _switch_app(self, app_name, *args, **kwargs):
-        print("Switching to {}".format(app_name))
         self._current_app = self._gui_apps[app_name]
         self._current_app.switch(*args, **kwargs)
 

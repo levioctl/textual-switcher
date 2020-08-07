@@ -185,8 +185,10 @@ class EntriesTree(object):
 
     def enforce_expanded_mode(self, expanded_mode):
         if expanded_mode:
+            print("Expanding all")
             self.treeview.expand_all()
         else:
+            print("Collapsing all")
             self.treeview.collapse_all()
 
     def select_first_window(self):
