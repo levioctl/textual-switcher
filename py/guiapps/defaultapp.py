@@ -1,6 +1,9 @@
 import sys
 import signal
 from gui import keycodes
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk, GdkX11, GLib
 
 
 class DefaultApp:
@@ -44,8 +47,7 @@ class DefaultApp:
         self._entriestree.select_first_window()
 
     def _toggle_expanded_mode(self):
-        self._switcher_window.expanded_mode = not self._switcher_window.expanded_mode
-        self._switcher_window.enforce_expanded_mode()
+        pass
 
     def _terminate(self):
         self._switcher_window.send_signal_to_selected_process(signal.SIGTERM)
@@ -56,7 +58,6 @@ class DefaultApp:
         self._is_ctrl_pressed = (state & state.CONTROL_MASK).bit_length() > 0
         self._is_shift_pressed = (state & state.SHIFT_MASK).bit_length() > 0
         keycode = (self._is_ctrl_pressed, self._is_shift_pressed, keycode)
-        print(keycode)
         if keycode in self._actions:
             action = self._actions[keycode]
             action()

@@ -1,4 +1,7 @@
+# To disaable annoying overlay (half-transparent scrollbar that appears only on mouse move)
+import os
 import sys
+os.environ['GTK_OVERLAY_SCROLLING'] = "0"
 import gi
 gi.require_version('Gtk', '3.0')
 gi.require_version('GdkPixbuf', '2.0')

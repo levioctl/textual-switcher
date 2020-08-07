@@ -76,9 +76,9 @@ class EntriesTree(object):
         record_a_type = model[iter_a][COL_NR_RECORD_TYPE]
         record_b_type = model[iter_b][COL_NR_RECORD_TYPE]
         if record_a_type not in(RECORD_TYPE_BROWSER_TAB, RECORD_TYPE_WINDOW):
-            return -1
-        if record_b_type not in(RECORD_TYPE_BROWSER_TAB, RECORD_TYPE_WINDOW):
             return 1
+        if record_b_type not in(RECORD_TYPE_BROWSER_TAB, RECORD_TYPE_WINDOW):
+            return -1
 
         window_a_id = model[iter_a][COL_NR_WINDOW_ID]
         window_b_id = model[iter_b][COL_NR_WINDOW_ID]
@@ -182,6 +182,11 @@ class EntriesTree(object):
 
     def update_search_key(self, search_key):
         self.listfilter.update_search_key(search_key)
+
+    #def _expand_row_by_iter(self, row_iter):
+    #    model = self.treeview.get_model()
+    #    row = model[row_iter]
+    #    self.treeview.expand_row(row.path, True)
 
     def enforce_expanded_mode(self, expanded_mode):
         if expanded_mode:

@@ -131,9 +131,6 @@ class EntryWindow(Gtk.Window):
         # TODO can we refresh this tab list entry only
         self._entriestree.refresh(self._windows, self._tabs, self._bookmarks, self.expanded_mode)
 
-    def enforce_expanded_mode(self):
-        self._entriestree.enforce_expanded_mode(self.expanded_mode)
-
     def _async_list_tabs_from_windows_list(self, windows):
         active_browsers = [window for window in windows if window.is_browser()]
         active_browsers_pids = [browser.pid for browser in active_browsers]

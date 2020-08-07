@@ -18,6 +18,7 @@ class SearchTextbox(object):
         search_key = search_textbox.get_text()
         search_key = search_key.decode('utf-8')
         self._entriestree.update_search_key(search_key)
+        self._entriestree.enforce_expanded_mode(True)
         self._entriestree.treefilter.refilter()
         if not self._is_some_window_selected():
             self._entriestree.select_first_window()
