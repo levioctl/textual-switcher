@@ -41,16 +41,25 @@ class EntriesTree(object):
         self.treeview.connect("row-activated", row_activated_callback)
         self.treeview.connect("key-press-event", treeview_keypress)
         self.treeview.connect("cursor-changed", row_selected_callback)
-        columns = {COL_NR_ICON: "Icon",
-                    COL_NR_TITLE: "Title"}
-        for i, column_title in columns.iteritems():
-            renderer = Gtk.CellRendererText()
-            column = Gtk.TreeViewColumn(column_title, renderer, text=i)
-            if i == COL_NR_ICON:
-                renderer = Gtk.CellRendererPixbuf()
-                column = Gtk.TreeViewColumn(column_title, renderer, pixbuf=i)
-            self.treeview.append_column(column)
-        self.treeview.set_level_indentation(20)
+
+        column = Gtk.TreeViewColumn("")
+
+        # Create subcolumns
+        subcolumn_icon = Gtk.CellRendererPixbuf()
+        subcolumn_text = Gtk.CellRendererText()
+
+        # Pack subcolumns to column
+        column.pack_start(subcolumn_icon, False)
+        column.pack_start(subcolumn_text, True)
+
+        # Bind subcolumns
+        column.add_attribute(subcolumn_icon, "pixbuf", COL_NR_ICON)
+        column.add_attribute(subcolumn_text, "text", COL_NR_TITLE)
+    
+        self.treeview.append_column(column)
+
+        self.treeview.set_level_indentation(5)
+        self.treeview.set_enable_tree_lines(True)
 
     def _create_tree_filter(self):
         tree_filter = self.tree.filter_new()
