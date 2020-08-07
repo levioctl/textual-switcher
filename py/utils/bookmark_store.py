@@ -35,19 +35,17 @@ class BookmarksStore(object):
         if self._bookmarks is None:
             raise NotConnectedToCloudStorage()
 
-        parent = self._bookmarks
-
-        # Look for parent dir in tree
-        if parent_dir_entry_guid != -1 and self._bookmarks:
-            dfs_stack = [self._bookmarks[0]]
-            while dfs_stack:
-                item = dfs_stack.pop()
-                if item['guid'] == parent_dir_entry_guid:
-                    parent = item['childen']
-                for child in item['children']:
-                    dfs_stack.append(child)
-            else:
-                print("Did not find parent dir")
+        if parent_dir_entry_guid == 'ROOT':
+            parent = self._bookmarks
+        else:
+            parent = self.get_entry_by_guid(parent_dir_entry_guid)
+            if 'children' not in parent:
+                if 'url' in parent:
+                    raise ValueError("Cannot add child bookmark to non-folder bookmark", parent_dir_entry_guid)
+                else:
+                    # Fix entry
+                    parent['children'] = []
+            parent = parent['children']
 
         if parent is not None:
             parent.append({'url': url, 'name': title, 'guid': uuid.uuid4().hex})
@@ -71,21 +69,19 @@ class BookmarksStore(object):
     def add_folder(self, parent_folder_guid):
         is_parent_folder_root_folder = parent_folder_guid == 'ROOT'
 
-        # Validate parent folder
-        if not is_parent_folder_root_folder:
-            if parent_folder_guid not in self._bookmarks:
-                raise ValueError("Cannot add folder, parent guid not found", parent_folder_guid)
-
-            if 'url' in self._bookmarks[parent_folder_guid]:
-                raise ValueError("Cannot add folder, parent guid not found", parent_folder_guid)
-
         # Generate folder
         folder = {'name': 'blabla', 'guid': uuid.uuid4().hex}
 
         if is_parent_folder_root_folder:
             self._bookmarks.append(folder)
         else:
-            self._bookmarks['children'].append(folder)
+            parent = self.get_entry_by_guid(parent_folder_guid)
+
+            # Fix entry if no 'children' key
+            if 'url' not in parent and 'children' not in 'parent':
+                parent['children'] = []
+
+            parent['children'].append(folder)
 
         self._async_write()
             
@@ -96,6 +92,14 @@ class BookmarksStore(object):
         If parent is root, return 'ROOT'.
         If GUID does not exist, return None.
         """
+        _, parent = self._get_entry_by_guid(guid)
+        return parent
+
+    def get_entry_by_guid(self, guid):
+        item, _ = self._get_entry_by_guid(guid)
+        return item
+
+    def _get_entry_by_guid(self, guid):
         # Find parent dir of bookmark
         root = {'guid': "ROOT", 'children': self._bookmarks}
         dfs_stack = [(root, None)]
@@ -110,12 +114,9 @@ class BookmarksStore(object):
                 for child in item['children']:
                     dfs_stack.append((child, item))
 
-        if parent_dir is None:
-            raise RuntimeError("Cannot remove bookmark, inner bookmarks collection does not contain bookmark")
-
         assert item in parent_dir["children"]
 
-        return parent_dir
+        return item, parent_dir
 
     def _list_bookmarks_callback(self, bookmarks_yaml):
         print("Bookmarks received from drive")

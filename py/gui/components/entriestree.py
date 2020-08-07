@@ -136,18 +136,30 @@ class EntriesTree(object):
 
 
         # Add the bookmarks row
-        icon = gi.repository.GdkPixbuf.Pixbuf.new_from_file("/usr/share/textual-switcher/4096584-favorite-star_113762.ico")
-        row = [RECORD_TYPE_BOOKMARKS_DIR, icon, "Bookmarks", 0, NON_TAB_FLAG, "", "ROOT"]
-        row_iter = self.tree.append(None, row)
-        for bookmark in bookmarks:
+        root = {'guid': "ROOT", 'children': bookmarks}
+        dfs_stack = [(root, None)]
+        parent_dir = None
+        item = None
+        row_iter = None
+        while dfs_stack:
+            bookmark, parent_row_iter = dfs_stack.pop()
+
             icon = gi.repository.GdkPixbuf.Pixbuf.new_from_file("/usr/share/textual-switcher/page_document_16748.ico")
-            if "url" in bookmark:
+            if bookmark['guid'] == 'ROOT':
+                icon = gi.repository.GdkPixbuf.Pixbuf.new_from_file("/usr/share/textual-switcher/4096584-favorite-star_113762.ico")
+                row = [RECORD_TYPE_BOOKMARKS_DIR, icon, "Bookmarks", 0, NON_TAB_FLAG, "", "ROOT"]
+            elif "url" in bookmark:
                 label = u"{} ({})".format(bookmark["name"], bookmark["url"])
                 row = [RECORD_TYPE_BOOKMARK_ENTRY, icon, label, 0, -1, bookmark['url'], bookmark['guid']] 
             else:
                 label = bookmark["name"]
                 row = [RECORD_TYPE_BOOKMARKS_DIR, icon, label, 0, -1, bookmark['name'], bookmark['guid']] 
-            self.tree.append(row_iter, row)
+
+            row_iter = self.tree.append(parent_row_iter, row)
+            if 'children' in bookmark:
+                for child in bookmark['children']:
+                    dfs_stack.append((child, row_iter))
+
 
         self.enforce_expanded_mode(expanded_mode)
         self.select_first_window()
