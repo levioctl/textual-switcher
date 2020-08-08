@@ -61,6 +61,7 @@ class EntryWindow(Gtk.Window):
         self._current_app = self._gui_apps['entries_search']
 
         self._search_textbox = searchtextbox.SearchTextbox(self._handle_keypress,
+                                                           self._text_changed_callback,
                                                            self._entry_activated_callback,
                                                            self._entriestree,
                                                            )
@@ -208,7 +209,7 @@ class EntryWindow(Gtk.Window):
             self._search_textbox.element.grab_focus()
 
     def send_signal_to_selected_process(self, signal_type):
-        window_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_WINDOW_ID)
+        window_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_ID_INT)
         window = self._windows[window_id]
         os.kill(window.get_pid(), signal_type)
         self.async_list_windows()
@@ -258,3 +259,11 @@ class EntryWindow(Gtk.Window):
 
     def _handle_keypress(self, *args):
         self._current_app.handle_keypress(*args)
+
+    def _text_changed_callback(self, search_key):
+        self._entriestree.update_search_key(search_key)
+        self._entriestree.enforce_expanded_mode(True)
+        #if not self._is_some_window_selected():
+        #    self._entriestree.select_first_window()
+        if len(self._entriestree.tree):
+            self._entriestree.select_first_tab_under_selected_window()

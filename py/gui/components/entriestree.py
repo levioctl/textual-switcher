@@ -7,10 +7,10 @@ from gui import listfilter
 (COL_NR_RECORD_TYPE,
  COL_NR_ICON,
  COL_NR_TITLE,
- COL_NR_WINDOW_ID,
- COL_NR_ENTRY_INFO_INT,
+ COL_NR_ENTRY_ID_INT,
+ COL_NR_ENTRY_ID_INT2,
  COL_NR_ENTRY_INFO_STR,
- COL_NR_ENTRY_INFO_STR2,
+ COL_NR_ENTRY_ID_STR,
  ) = range(7)
 
 
@@ -24,15 +24,52 @@ from gui import listfilter
 ICON_SIZE = 25
 
 
+class ScoreManager(object):
+    ENTRY_VISIBILITY_LOWER_THRESHOLD_SCORE = 30
+
+    def __init__(self):
+        # All entities must exist in score map
+        # If an entity also exists in visibilty map, its visibility is not set by score, but by the
+        # visibility map
+        self._score_map = {}
+        self._visibilitiy_map = {}
+
+    def set_score(self, uid, value):
+        self._score_map[uid] = value
+
+    def get_score(self, uid):
+        return self._score_map.get(uid)
+
+    def is_visible(self, uid):
+        result = None
+        if uid in self._visibilitiy_map:
+            result = self._visibilitiy_map[uid]
+        elif uid in self._score_map:
+            result = self._score_map[uid] > self.ENTRY_VISIBILITY_LOWER_THRESHOLD_SCORE
+
+        return result
+
+    def override_visiblity(self, uid, value):
+        assert isinstance(value, bool)
+        self._visibilitiy_map[uid] = value
+
+    def reset(self):
+        self._score_map.clear()
+        self._visibilitiy_map.clear()
+
+
 class EntriesTree(object):
     def __init__(self,
                  row_activated_callback,
                  treeview_keypress,
                  get_tab_icon_callback,
                  row_selected_callback):
-        self._windows = {}
+        self._windows = None
+        self._bookmarks = None
         self._tabs = {}
+        self._s = ""
         self._get_tab_icon_callback = get_tab_icon_callback
+        self._score_manager = ScoreManager()
         self.tree = self._create_tree()
         self.listfilter = listfilter.ListFilter()
         self.treefilter = self._create_tree_filter()
@@ -80,8 +117,8 @@ class EntriesTree(object):
         if record_b_type not in(RECORD_TYPE_BROWSER_TAB, RECORD_TYPE_WINDOW):
             return -1
 
-        window_a_id = model[iter_a][COL_NR_WINDOW_ID]
-        window_b_id = model[iter_b][COL_NR_WINDOW_ID]
+        window_a_id = model[iter_a][COL_NR_ENTRY_ID_INT]
+        window_b_id = model[iter_b][COL_NR_ENTRY_ID_INT]
 
         window_a = self._windows[window_a_id]
         window_b = self._windows[window_b_id]
@@ -95,49 +132,53 @@ class EntriesTree(object):
             return 1
         return 0
 
-    def _filter_window_list_by_search_key(self, model, _iter, data):
+    def _filter_window_list_by_search_key(self, model, _iter, _):
+        if not self._s:
+            return True
+
         row = model[_iter]
-        record_type = row[COL_NR_RECORD_TYPE]
+        is_visible_according_to_map = self._lookup_visibility_map(row)
 
-        type_str = ""
-        token = row[COL_NR_TITLE].decode('utf-8')
-        # Find token and type_str according to record type
-        if record_type in (RECORD_TYPE_WINDOW, RECORD_TYPE_BROWSER_TAB):
-            window_id = row[COL_NR_WINDOW_ID]
-            if window_id is 0 or window_id not in self._windows:
-                return False
+        if is_visible_according_to_map is None:
+            should_be_visible = True
+        else:
+            should_be_visible = is_visible_according_to_map
 
-            token = row[COL_NR_TITLE].decode('utf-8')
-            window = self._windows[window_id]
-            if window.get_pid() in self._tabs:
-                tab_id = row[COL_NR_ENTRY_INFO_STR]
-                is_tab = tab_id >= 0
-                if window.is_browser() and not is_tab:
-                    tabs = self._tabs[window.get_pid()]
-                    sep = unicode(' ', 'utf-8')
-                    token += sep.join(tab['title'] for tab in tabs)
-                elif is_tab:
-                    matching = [tab for tab in self._tabs[window.get_pid()] if tab['id'] == tab_id]
-                    if matching:
-                        tab = matching[0]
-                        token = tab['title']
+        return should_be_visible
 
-                type_str = window.window.wm_class.decode('utf-8')
 
-        if isinstance(token, str):
-            token = unicode(token, 'utf-8')
+    def _update_visibility_map_for_window_and_its_tabs(self, window_id, window):
+        """Update visibility map with score of window and its tabs."""
 
-        score = self._get_score(token, type_str)
-        return score > 30
+        # Set title as token
+        window_token = window.get_label()
+        type_str = window.window.wm_class.decode('utf-8')
+        window_score = self._get_score(window_token, type_str)
+        window_uid = (window_id, 0, "")
+        self._score_manager.set_score(window_uid, window_score)
+        is_window_visible = self._score_manager.is_visible(window_uid)
+
+        # Calculate tabs scores
+        window_has_tabs = window.get_pid() in self._tabs
+        if window_has_tabs and window.is_browser():
+            tabs = self._tabs[window.get_pid()]
+            for tab in tabs:
+                tab_token = tab['title'] + u' ' + window_token
+                tab_uid = (window_id, tab['id'], "")
+                tab_score = self._get_score(tab_token, type_str)
+                self._score_manager.set_score(tab_uid, tab_score)
+                is_window_visible = is_window_visible or self._score_manager.is_visible(tab_uid)
+
+        self._score_manager.override_visiblity(window_uid, is_window_visible)
 
     def refresh(self, windows, tabs, bookmarks, expanded_mode):
         self._windows = windows
+        self._bookmarks = bookmarks
         self._tabs = tabs
         self.tree.clear()
-        NON_TAB_FLAG = -1
         for window in self._windows.values():
             window_row_label = window.get_label()
-            row = [RECORD_TYPE_WINDOW, window.icon, window.get_label(), window.get_xid(), NON_TAB_FLAG, "", ""]
+            row = [RECORD_TYPE_WINDOW, window.icon, window.get_label(), window.get_xid(), 0, "", ""]
             row_iter = self.tree.append(None, row)
 
             if window.is_browser():
@@ -156,13 +197,13 @@ class EntriesTree(object):
             icon = gi.repository.GdkPixbuf.Pixbuf.new_from_file("/usr/share/textual-switcher/page_document_16748.ico")
             if bookmark['guid'] == 'ROOT':
                 icon = gi.repository.GdkPixbuf.Pixbuf.new_from_file("/usr/share/textual-switcher/4096584-favorite-star_113762.ico")
-                row = [RECORD_TYPE_BOOKMARKS_DIR, icon, "Bookmarks", 0, NON_TAB_FLAG, "", "ROOT"]
+                row = [RECORD_TYPE_BOOKMARKS_DIR, icon, "Bookmarks", 0, 0, "", bookmark['guid']]
             elif "url" in bookmark:
                 label = u"{} ({})".format(bookmark["name"], bookmark["url"])
-                row = [RECORD_TYPE_BOOKMARK_ENTRY, icon, label, 0, -1, bookmark['url'], bookmark['guid']] 
+                row = [RECORD_TYPE_BOOKMARK_ENTRY, icon, label, 0, 0, bookmark['url'], bookmark['guid']] 
             else:
                 label = bookmark["name"]
-                row = [RECORD_TYPE_BOOKMARKS_DIR, icon, label, 0, -1, bookmark['name'], bookmark['guid']] 
+                row = [RECORD_TYPE_BOOKMARKS_DIR, icon, label, 0, 0, bookmark['name'], bookmark['guid']] 
 
             row_iter = self.tree.append(parent_row_iter, row)
             if 'children' in bookmark:
@@ -181,7 +222,10 @@ class EntriesTree(object):
         return score
 
     def update_search_key(self, search_key):
+        self._s = search_key
         self.listfilter.update_search_key(search_key)
+        self._update_visibility_map(search_key)
+        self.treefilter.refilter()
 
     #def _expand_row_by_iter(self, row_iter):
     #    model = self.treeview.get_model()
@@ -190,10 +234,8 @@ class EntriesTree(object):
 
     def enforce_expanded_mode(self, expanded_mode):
         if expanded_mode:
-            print("Expanding all")
             self.treeview.expand_all()
         else:
-            print("Collapsing all")
             self.treeview.collapse_all()
 
     def select_first_window(self):
@@ -220,19 +262,22 @@ class EntriesTree(object):
                                  )
 
     def select_first_tab_under_selected_window(self):
+        return
         # A bit of nasty GTK hackery
         # Find the selected row in the tree view model, using the window ID
-        selected_window_id = self.get_value_of_selected_row(COL_NR_WINDOW_ID)
+        selected_window_id = self.get_value_of_selected_row(COL_NR_ENTRY_ID_INT)
         #row = self._get_selected_row()
         model = self.treeview.get_model()
         _iter = model.get_iter_first()
         row = None
         while _iter is not None:
             row = model[_iter]
-            if row[COL_NR_WINDOW_ID] == selected_window_id:
+            if row[COL_NR_ENTRY_ID_INT] == selected_window_id:
                 break
             _iter = model.iter_next(_iter)
 
+        title = self.get_value_of_selected_row(COL_NR_TITLE)
+    
         # Select child row that best matches the search key (if matches more than the window row)
         if row != None:
             child_iter = model.iter_children(row.iter)
@@ -280,3 +325,50 @@ class EntriesTree(object):
     def get_selected_row(self):
         selection = self.treeview.get_selection()
         return selection.get_selected()
+
+    def _update_visibility_map(self, search_key):
+        # Initialize iterator to first row
+        self._score_manager.reset()
+
+        # Update visibility of windows and tabs
+        for window_id, window in self._windows.iteritems():
+            self._update_visibility_map_for_window_and_its_tabs(window_id, window)
+
+        # Invoke recursive map update function on all root nodes
+        is_there_a_visible_bookmark = False
+        for bookmark in self._bookmarks:
+            is_there_a_visible_bookmark = is_there_a_visible_bookmark or self._update_visibility_map_recursively(bookmark)
+        uid = (0, 0, 'ROOT')
+        self._score_manager.override_visiblity(uid, is_there_a_visible_bookmark)
+
+    def _update_visibility_map_recursively(self, bookmark):
+        """Update visibility map for bookmark and all its subtree, and return whether it's visible (bool)."""
+        # Update all child nodes while finding out if there's a visible descentant
+        is_there_a_visible_descendent = False
+        if 'children' in bookmark:
+            for child_bookmark in bookmark['children']:
+                # Update visibiliy map on child's descendents while maintaining is_there_a_visible_descendent,
+                # by checking if one of them is visible
+                is_there_a_descendant_in_child_subtree = self._update_visibility_map_recursively(child_bookmark)
+                is_there_a_visible_descendent = is_there_a_visible_descendent or is_there_a_descendant_in_child_subtree
+
+        score = self._get_score(bookmark['name'] + ' ' + bookmark.get('url', ''), 'bookmark')
+        uid = (0, 0, bookmark['guid'])
+        self._score_manager.set_score(uid, score)
+
+        # Make node visible if it has a visible descendant or if the label matches
+        if is_there_a_visible_descendent:
+            self._score_manager.override_visiblity(uid, True)
+
+        return self._score_manager.is_visible(uid)
+
+    def _get_row_unique_id(self, row):
+        return row[COL_NR_ENTRY_ID_INT], row[COL_NR_ENTRY_ID_INT2], row[COL_NR_ENTRY_ID_STR]
+
+    def _set_entry_in_visibility_map(self, row, value):
+        row_id = self._get_row_unique_id(row)
+        self._score_manager.set_score(row_id, value)
+
+    def _lookup_visibility_map(self, row):
+        row_id = self._get_row_unique_id(row)
+        return self._score_manager.is_visible(row_id)

@@ -14,7 +14,7 @@ class EntriesSearch(defaultapp.DefaultApp):
     def _choose_parent_dir_for_adding_bookmark(self):
         # Get the tab dict in which url and title are stored
         tab_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_INFO_INT)
-        window_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_WINDOW_ID)
+        window_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_ID_INT)
         window_pid = self._switcher_window._windows[window_id].get_pid()
 
         # Find tab by ID
@@ -29,7 +29,7 @@ class EntriesSearch(defaultapp.DefaultApp):
         self._switcher_window.choose_parent_dir_for_adding_bookmark(tab['title'], tab['url'])
 
     def handle_entry_activation(self, *_):
-        window_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_WINDOW_ID)
+        window_id = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_ID_INT)
         if window_id is None:
             return
         try:

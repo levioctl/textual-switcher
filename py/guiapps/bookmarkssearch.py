@@ -14,7 +14,7 @@ class BookmarksSearch(entriessearch.EntriesSearch):
 
         # If selected entry is a URL, parent folder will be parent of selected entry.
         record_type = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_RECORD_TYPE)
-        selected_entry_guid = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_INFO_STR2)
+        selected_entry_guid = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_ID_STR)
         if record_type == entriestree.RECORD_TYPE_BOOKMARK_ENTRY:
             parent_folder = self._bookmark_store.get_parent_of_entry(selected_entry_guid)
             parent_folder_guid = parent_folder['guid']
@@ -30,5 +30,5 @@ class BookmarksSearch(entriessearch.EntriesSearch):
             self._switcher_window._switch_app("entries_search")
 
     def handle_entry_activation(self):
-        url = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_INFO_STR2)
+        url = self._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_ID_STR)
         webbrowser.open(url)
