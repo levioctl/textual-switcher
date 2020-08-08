@@ -64,7 +64,7 @@ class CloudFileSynchronizerThread(threading.Thread):
                     contents = self._cloud_file_synchronizer.read_remote_file()
                     self._get_contents_callback(contents)
                 elif request['type'] == 'read_cache':
-                    contents = self._read_cache_once(contents)
+                    contents = self._read_cache_once()
                     if contents is not None:
                         self._get_local_cache_callback(contents)
             except Exception as ex:

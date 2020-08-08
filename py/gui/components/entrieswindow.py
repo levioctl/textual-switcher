@@ -266,4 +266,4 @@ class EntryWindow(Gtk.Window):
         #if not self._is_some_window_selected():
         #    self._entriestree.select_first_window()
         if len(self._entriestree.tree):
-            self._entriestree.select_first_tab_under_selected_window()
+            self._entriestree.select_best_matching_row()

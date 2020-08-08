@@ -1,3 +1,4 @@
+import operator
 import gi
 from gi.repository import Gtk
 from gi.repository.GdkPixbuf import Pixbuf, InterpType
@@ -57,6 +58,11 @@ class ScoreManager(object):
         self._score_map.clear()
         self._visibilitiy_map.clear()
 
+    def get_max_score_uid(self):
+        if not self._score_map:
+            return None
+        return max(self._score_map.iteritems(), key=operator.itemgetter(1))[0]
+
 
 class EntriesTree(object):
     def __init__(self,
@@ -67,7 +73,7 @@ class EntriesTree(object):
         self._windows = None
         self._bookmarks = None
         self._tabs = {}
-        self._s = ""
+        self._s = None
         self._get_tab_icon_callback = get_tab_icon_callback
         self._score_manager = ScoreManager()
         self.tree = self._create_tree()
@@ -134,6 +140,7 @@ class EntriesTree(object):
 
     def _filter_window_list_by_search_key(self, model, _iter, _):
         if not self._s:
+            self.select_first_window()
             return True
 
         row = model[_iter]
@@ -212,7 +219,6 @@ class EntriesTree(object):
 
 
         self.enforce_expanded_mode(expanded_mode)
-        self.select_first_window()
 
     def _get_score(self, title, type_str):
         score = self.listfilter.get_candidate_score(title)
@@ -261,56 +267,34 @@ class EntriesTree(object):
                                   ]
                                  )
 
-    def select_first_tab_under_selected_window(self):
-        return
-        # A bit of nasty GTK hackery
-        # Find the selected row in the tree view model, using the window ID
-        selected_window_id = self.get_value_of_selected_row(COL_NR_ENTRY_ID_INT)
-        #row = self._get_selected_row()
+    def select_best_matching_row(self):
+        # Get selected row
+        _filter, _iter = self.treeview.get_selection().get_selected()
         model = self.treeview.get_model()
-        _iter = model.get_iter_first()
-        row = None
-        while _iter is not None:
-            row = model[_iter]
-            if row[COL_NR_ENTRY_ID_INT] == selected_window_id:
-                break
-            _iter = model.iter_next(_iter)
+        row = model[_iter]
 
-        title = self.get_value_of_selected_row(COL_NR_TITLE)
-    
-        # Select child row that best matches the search key (if matches more than the window row)
-        if row != None:
-            child_iter = model.iter_children(row.iter)
-            best_row_so_far = None
-            best_score_so_far = None
-            while child_iter is not None:
-                child_row = model[child_iter]
-                child_title = child_row[COL_NR_TITLE]
-                child_score = self.listfilter.get_candidate_score(child_title)
-                if best_row_so_far is None or child_score > best_score_so_far:
-                    best_row_so_far = child_row
-                    best_score_so_far = child_score
-                child_iter = model.iter_next(child_iter)
+        # Find best score row under selected row by DFS search
+        if row is not None:
+            max_uid = self._score_manager.get_max_score_uid()
+            dfs_stack = [row]
+            max_score_row = None
+            while dfs_stack:
+                # Check if current row is max score row by UID
+                row = dfs_stack.pop()
+                uid = self._get_row_unique_id(row)
+                if uid == max_uid:
+                    max_score_row = row
+                    break
 
-            # Select the child row if better score than window
-            if best_row_so_far is not None:
+                # Add children to scack
+                child_iter = model.iter_children(row.iter)
+                while child_iter is not None:
+                    row = model[child_iter]
+                    dfs_stack.append(row)
+                    child_iter = model.iter_next(child_iter)
 
-                is_window = self.get_value_of_selected_row(COL_NR_RECORD_TYPE) == RECORD_TYPE_WINDOW
-                if is_window:
-                    window = self._windows[selected_window_id]
-                    parent_score = self._get_score(window.window.title, window.window.wm_class)
-                else:
-                    title = self.get_value_of_selected_row(COL_NR_TITLE)
-                    parent_score = self._get_score(title, "")
-
-                if best_score_so_far >= parent_score:
-                    # Selct tab
-                    self.treeview.set_cursor(best_row_so_far.path)
-                else:
-                    # Select window
-                    self.select_first_window()
-            else:
-                self.select_first_window()
+            if max_score_row is not None:
+                self.treeview.set_cursor(max_score_row.path)
 
     def get_value_of_selected_row(self, col_nr):
         _filter, _iter = self.get_selected_row()
