@@ -1,8 +1,40 @@
-import operator
+import base64
+import traceback
 import gi
-from gi.repository import Gtk
+from gi.repository import Gtk, Gio
 from gi.repository.GdkPixbuf import Pixbuf, InterpType
-from gui import listfilter
+import expiringdict
+from utils import glib_wrappers
+from gui.components import listfilter, scoremanager
+
+
+def try_parse_icon_from_favicon_inline_contents(fav_icon_url):
+    image = None
+
+    for image_prefix in KNOWN_ICON_TYPES:
+        # Try parsing image as inline
+        image = None
+        is_base64 = False
+
+        # Populate `image` and `is_base64`
+        if fav_icon_url.startswith("data:image/{},".format(image_prefix)):
+            image_type, image = fav_icon_url.split('/', 1)[1].split(',', 1)
+            if image_type in KNOWN_BASE64_ICON_TYPES:
+                is_base64 = True
+        elif fav_icon_url.startswith("data:image/{};".format(image_prefix)):
+            _, parameter_and_image = fav_icon_url.split('/', 1)[1].split(';', 1)
+
+            if parameter_and_image.startswith("base64,"):
+                image = parameter_and_image.split(',', 1)[1]
+                is_base64 = True
+
+        # Act on `image` and `base64`
+        if image is not None:
+            if is_base64:
+                image = base64.b64decode(image)
+            break
+
+    return image
 
 
 (COL_NR_RECORD_TYPE,
@@ -22,62 +54,38 @@ from gui import listfilter
  ) = range(4)
 
 
-ICON_SIZE = 25
-
-
-class ScoreManager(object):
-    ENTRY_VISIBILITY_LOWER_THRESHOLD_SCORE = 30
-
-    def __init__(self):
-        # All entities must exist in score map
-        # If an entity also exists in visibilty map, its visibility is not set by score, but by the
-        # visibility map
-        self._score_map = {}
-        self._visibilitiy_map = {}
-
-    def set_score(self, uid, value):
-        self._score_map[uid] = value
-
-    def get_score(self, uid):
-        return self._score_map.get(uid)
-
-    def is_visible(self, uid):
-        result = None
-        if uid in self._visibilitiy_map:
-            result = self._visibilitiy_map[uid]
-        elif uid in self._score_map:
-            result = self._score_map[uid] > self.ENTRY_VISIBILITY_LOWER_THRESHOLD_SCORE
-
-        return result
-
-    def override_visiblity(self, uid, value):
-        assert isinstance(value, bool)
-        self._visibilitiy_map[uid] = value
-
-    def reset(self):
-        self._score_map.clear()
-        self._visibilitiy_map.clear()
-
-    def get_max_score_uid(self):
-        if not self._score_map:
-            return None
-        return max(self._score_map.iteritems(), key=operator.itemgetter(1))[0]
+KNOWN_ICON_TYPES = (
+                    "x-icon",
+                    "png",
+                    "gif",
+                    "x-iconbase64",
+                    "pngbase64",
+                    "jpeg",
+                    "svg+xml",
+                    )
+KNOWN_BASE64_ICON_TYPES = (
+                           "x-iconbase64",
+                           "pngbase64",
+                           #"svg+xml",
+                           )
 
 
 class EntriesTree(object):
+    ONE_DAY_IN_SECONDS = 60 * 60 * 24
+    ICON_SIZE = 25
+
     def __init__(self,
                  row_activated_callback,
                  treeview_keypress,
-                 get_tab_icon_callback,
                  row_selected_callback):
-        self._windows = None
-        self._bookmarks = None
-        self._tabs = {}
         self._s = None
-        self._get_tab_icon_callback = get_tab_icon_callback
-        self._score_manager = ScoreManager()
+        self._tabs = {}
+        self._windows = {}
+        self._bookmarks = []
+        self._pid_to_row_iter = {}
+        self.expanded_mode = True
+        self._icon_cache = expiringdict.ExpiringDict(max_len=100, max_age_seconds=self.ONE_DAY_IN_SECONDS)
         self.tree = self._create_tree()
-        self.listfilter = listfilter.ListFilter()
         self.treefilter = self._create_tree_filter()
         self.treeview = Gtk.TreeView.new_with_model(self.treefilter)
         self.treeview.set_headers_visible(False)
@@ -103,97 +111,116 @@ class EntriesTree(object):
 
         self.treeview.set_level_indentation(5)
         self.treeview.set_enable_tree_lines(True)
+        self._listfilter = listfilter.ListFilter()
+        self._score_manager = scoremanager.ScoreManager()
+
+    def update_search_key(self, search_key):
+        self._s = search_key
+        self._listfilter.update_search_key(search_key)
+        self._update_visibility_map()
+        self.treefilter.refilter()
+        if len(self.tree):
+            self.select_best_matching_visible_row()
+        self.enforce_expanded_mode()
 
     def _create_tree_filter(self):
         tree_filter = self.tree.filter_new()
-        tree_filter.set_visible_func(self._filter_window_list_by_search_key)
+        tree_filter.set_visible_func(self._should_row_be_visible)
         return tree_filter
 
     def _create_tree(self):
         tree = Gtk.TreeStore(int, Pixbuf, str, int, int, str, str)
-        tree.set_sort_func(1, self._compare_windows)
         tree.set_sort_column_id(1, Gtk.SortType.ASCENDING)
+        tree.set_sort_func(1, self._compare_windows)
         return tree
 
-    def _compare_windows(self, model, iter_a, iter_b, user_data):
-        record_a_type = model[iter_a][COL_NR_RECORD_TYPE]
-        record_b_type = model[iter_b][COL_NR_RECORD_TYPE]
-        if record_a_type not in(RECORD_TYPE_BROWSER_TAB, RECORD_TYPE_WINDOW):
-            return 1
-        if record_b_type not in(RECORD_TYPE_BROWSER_TAB, RECORD_TYPE_WINDOW):
-            return -1
-
-        window_a_id = model[iter_a][COL_NR_ENTRY_ID_INT]
-        window_b_id = model[iter_b][COL_NR_ENTRY_ID_INT]
-
-        window_a = self._windows[window_a_id]
-        window_b = self._windows[window_b_id]
-
-        window_a_score = self._get_score(window_a.window.title, window_a.window.wm_class)
-        window_b_score = self._get_score(window_b.window.title, window_b.window.wm_class)
-
-        if window_a_score > window_b_score:
-            return -1
-        elif window_b_score > window_a_score:
-            return 1
-        return 0
-
-    def _filter_window_list_by_search_key(self, model, _iter, _):
+    def _should_row_be_visible(self, model, _iter, _):
         if not self._s:
             self.select_first_window()
             return True
 
         row = model[_iter]
-        is_visible_according_to_map = self._lookup_visibility_map(row)
 
-        if is_visible_according_to_map is None:
-            should_be_visible = True
-        else:
-            should_be_visible = is_visible_according_to_map
+        row_id = self._get_row_unique_id(row)
 
-        return should_be_visible
+        return self.should_row_be_visible(row_id)
 
-
-    def _update_visibility_map_for_window_and_its_tabs(self, window_id, window):
-        """Update visibility map with score of window and its tabs."""
-
-        # Set title as token
-        window_token = window.get_label()
-        type_str = window.window.wm_class.decode('utf-8')
-        window_score = self._get_score(window_token, type_str)
-        window_uid = (window_id, 0, "")
-        self._score_manager.set_score(window_uid, window_score)
-        is_window_visible = self._score_manager.is_visible(window_uid)
-
-        # Calculate tabs scores
-        window_has_tabs = window.get_pid() in self._tabs
-        if window_has_tabs and window.is_browser():
-            tabs = self._tabs[window.get_pid()]
-            for tab in tabs:
-                tab_token = tab['title'] + u' ' + window_token
-                tab_uid = (window_id, tab['id'], "")
-                tab_score = self._get_score(tab_token, type_str)
-                self._score_manager.set_score(tab_uid, tab_score)
-                is_window_visible = is_window_visible or self._score_manager.is_visible(tab_uid)
-
-        self._score_manager.override_visiblity(window_uid, is_window_visible)
-
-    def refresh(self, windows, tabs, bookmarks, expanded_mode):
-        self._windows = windows
-        self._bookmarks = bookmarks
-        self._tabs = tabs
+    def _refresh(self):
         self.tree.clear()
-        for window in self._windows.values():
+        self._add_windows_and_tabs_to_tree()
+        self._add_bookmarks_entries_to_tree()
+        self.treefilter.refilter()
+        self.enforce_expanded_mode()
+        self.select_best_matching_visible_row()
+
+    def update_windows(self, windows):
+        self._windows = windows
+        self._refresh()
+
+        ## Refresh existing window entries
+        #removed_set = set()
+        #while True:
+        #    # Find next window/tab
+        #    model = self.treeview.get_model()
+        #    row_iter = model.get_iter_first()
+        #    window_row_iter = None
+        #    while row_iter is not None:
+        #        # Get row from iterator
+        #        row = model[row_iter]
+
+        #        # Remove row if its a window or a tab
+        #        xid = row[COL_NR_ENTRY_ID_INT] 
+        #        if row[COL_NR_RECORD_TYPE] == RECORD_TYPE_WINDOW and xid not in removed_set:
+        #            removed_set.add(xid)
+        #            window_row_iter = row_iter
+        #            break
+
+        #        row_iter = model.iter_next(row_iter)
+
+        #    if window_row_iter is None:
+        #        # No more windows/tabs
+        #        break
+        #    else:
+        #        xid = row[COL_NR_ENTRY_ID_INT]
+        #        window = self._windows[xid]
+        #        print("Removing entry '{}'".format(window_row_iter))
+        #        self.tree.remove(window_row_iter)
+        #        self.treefilter.refilter()
+
+    def _add_windows_and_tabs_to_tree(self):
+        # Add windows to treeview
+        for window_xid in sorted(self._windows):
+            window = self._windows[window_xid]
             window_row_label = window.get_label()
             row = [RECORD_TYPE_WINDOW, window.icon, window.get_label(), window.get_xid(), 0, "", ""]
             row_iter = self.tree.append(None, row)
 
             if window.is_browser():
-                self._add_tabs_of_window_to_tree(window, row_iter)
+                self._pid_to_row_iter[window.get_pid()] = row_iter
+                self._add_tabs_of_window_to_treeview(window)
 
+    def update_tabs(self, pid, tabs):
+        # Make sure window is in local cache
+        matching_windows = [window for window in self._windows.itervalues() if window.get_pid() == pid]
+        if not matching_windows:
+            raise RuntimeError("Received tabs for a nonexistent window")
+        if len(matching_windows) > 1:
+            raise RuntimeError("Local cache contains multuple entries with same PID {}".format(pid))
+        window = matching_windows[0]
 
-        # Add the bookmarks row
-        root = {'guid': "ROOT", 'children': bookmarks}
+        # Update local cache of tabs
+        self._tabs[pid] = tabs
+
+        # Update treeview
+        self._refresh()
+
+    def update_bookmarks(self, bookmarks):
+        self._bookmarks = bookmarks
+        self._refresh()
+
+    def _add_bookmarks_entries_to_tree(self):
+        # Add the bookmarks rows by scanning bookmarks tree with DFS
+        root = {'guid': "ROOT", 'children': self._bookmarks}
         dfs_stack = [(root, None)]
         parent_dir = None
         item = None
@@ -212,34 +239,20 @@ class EntriesTree(object):
                 label = bookmark["name"]
                 row = [RECORD_TYPE_BOOKMARKS_DIR, icon, label, 0, 0, bookmark['name'], bookmark['guid']] 
 
+            # Add bookmark row
             row_iter = self.tree.append(parent_row_iter, row)
+
             if 'children' in bookmark:
                 for child in bookmark['children']:
                     dfs_stack.append((child, row_iter))
-
-
-        self.enforce_expanded_mode(expanded_mode)
-
-    def _get_score(self, title, type_str):
-        score = self.listfilter.get_candidate_score(title)
-        if type_str is not None and type_str:
-            type_str_score = self.listfilter.get_candidate_score(type_str)
-            score = max(score, type_str_score)
-        return score
-
-    def update_search_key(self, search_key):
-        self._s = search_key
-        self.listfilter.update_search_key(search_key)
-        self._update_visibility_map(search_key)
-        self.treefilter.refilter()
 
     #def _expand_row_by_iter(self, row_iter):
     #    model = self.treeview.get_model()
     #    row = model[row_iter]
     #    self.treeview.expand_row(row.path, True)
 
-    def enforce_expanded_mode(self, expanded_mode):
-        if expanded_mode:
+    def enforce_expanded_mode(self):
+        if self.expanded_mode:
             self.treeview.expand_all()
         else:
             self.treeview.collapse_all()
@@ -248,43 +261,97 @@ class EntriesTree(object):
         if len(self.tree):
             self.treeview.set_cursor(0)
 
-    def _add_tabs_of_window_to_tree(self, window, row_iter):
-        if window.get_pid() in self._tabs:
-            for tab in self._tabs[window.get_pid()]:
-                icon = self._get_tab_icon_callback(tab)
+    def _add_tabs_of_window_to_treeview(self, window):
+        # Find row iter
+        pid = window.get_pid()
+
+        if pid in self._tabs:
+            for tab in self._tabs[pid]:
+                # Check if icon can be fetched now instead of fetching the URL contents
+
+                # Try fetching tab icon
+                icon = None
+                tab_has_icon = "favIconUrl" in tab
+                if tab_has_icon:
+                    # Look in local cache first
+                    icon = self._get_tab_icon_from_local_cache(tab)
+
+                    # If not in local cache, check if icon contents is inline inside favIconUrl
+                    if icon is None:
+                        icon = self.get_icon_from_favicon_url(tab)
+
+                    # If icon is still not found, then favIconUrl is a URL (and not inline image contents).
+                    # Fetch it asynchronously (will icon will be updated later)
+                    if icon is None:
+                        self._async_get_tab_icon_contents_from_url(tab)
+                else:
+                    # Tab does not have an icon
+                    print("Tab {} does not have a favIconUrl".format(tab['title']))
+
+                # If no icon was found now, use the window icon in the meantime
                 if icon is None:
                     icon = window.icon
-                else:
-                    icon = icon.scale_simple(ICON_SIZE, ICON_SIZE, InterpType.BILINEAR)
-                self.tree.append(row_iter,
-                                 [RECORD_TYPE_BROWSER_TAB,
-                                  icon,
-                                  tab['title'],
-                                  window.get_xid(),
-                                  tab['id'],
-                                  "",
-                                  ""
-                                  ]
-                                 )
 
-    def select_best_matching_row(self):
-        # Get selected row
-        _filter, _iter = self.treeview.get_selection().get_selected()
+                # Add row
+                tab_row_iter = self.tree.append(self._pid_to_row_iter[pid],
+                                [RECORD_TYPE_BROWSER_TAB,
+                                icon,
+                                tab['title'],
+                                window.get_xid(),
+                                tab['id'],
+                                "",
+                                ""
+                                ]
+                                )
+
+                tab['row_iter'] = tab_row_iter
+
+        else:
+            pass
+
+    def _update_tab_icon(self, tab):
+        # Get row iter for tab
+        if 'row_iter' in tab:
+            tab_row_iter = tab['row_iter']
+        else:
+            print("Tab does not contain a tab_iter key")
+            print(tab)
+            return
+
+        # Update row
         model = self.treeview.get_model()
+        row = model[tab_row_iter]
+        self.tree.set_value(tab_row_iter, COL_NR_ICON, self._icon_cache[tab['favIconUrl']])
+
+    def select_best_matching_visible_row(self):
+        max_score_uids = self._score_manager.get_max_score_uids()
+        if max_score_uids is None:
+            print('max_score_uids is none')
+            self.select_first_window()
+            return
+
+        # Get selected row
+        _, _iter = self.treeview.get_selection().get_selected()
+        model = self.treeview.get_model()
+        if _iter is None:
+            print('iter is none')
+            _iter = model.get_iter_first()
+            if _iter is None:
+                print('iter is none2')
+                self.select_first_window()
         row = model[_iter]
 
         # Find best score row under selected row by DFS search
         if row is not None:
-            max_uid = self._score_manager.get_max_score_uid()
             dfs_stack = [row]
             max_score_row = None
             while dfs_stack:
                 # Check if current row is max score row by UID
                 row = dfs_stack.pop()
                 uid = self._get_row_unique_id(row)
-                if uid == max_uid:
+                if uid in max_score_uids:
                     max_score_row = row
-                    break
+
 
                 # Add children to scack
                 child_iter = model.iter_children(row.iter)
@@ -310,7 +377,131 @@ class EntriesTree(object):
         selection = self.treeview.get_selection()
         return selection.get_selected()
 
-    def _update_visibility_map(self, search_key):
+    def _get_row_unique_id(self, row):
+        return row[COL_NR_ENTRY_ID_INT], row[COL_NR_ENTRY_ID_INT2], row[COL_NR_ENTRY_ID_STR]
+
+    def _compare_windows(self, model, iter_a, iter_b, user_data):
+        record_a_type = model[iter_a][COL_NR_RECORD_TYPE]
+        record_b_type = model[iter_b][COL_NR_RECORD_TYPE]
+
+        if record_a_type not in(RECORD_TYPE_BROWSER_TAB, RECORD_TYPE_WINDOW):
+            return 1
+        if record_b_type not in(RECORD_TYPE_BROWSER_TAB, RECORD_TYPE_WINDOW):
+            return -1
+
+        window_a_id = model[iter_a][COL_NR_ENTRY_ID_INT]
+        window_b_id = model[iter_b][COL_NR_ENTRY_ID_INT]
+
+        window_a = self._windows[window_a_id]
+        window_b = self._windows[window_b_id]
+
+        window_a_score = self.get_score(window_a.window.title, window_a.window.wm_class)
+        window_b_score = self.get_score(window_b.window.title, window_b.window.wm_class)
+
+        if window_a_score > window_b_score:
+            return -1
+        elif window_b_score > window_a_score:
+            return 1
+        return 0
+
+    def _async_get_tab_icon_contents_from_url(self, tab):
+        # Async read icon from URL by scheduling the ready callback
+        fav_icon_url = tab["favIconUrl"]
+
+        # Parse image as URL
+        def callback(url, image):
+            icon = self._store_image_contents_as_in_icon_cache(tab, image)
+
+            # Invoke update callback
+            if icon is not None:
+                self._update_tab_icon(tab)
+
+        glib_wrappers.async_get_url(fav_icon_url, callback)
+
+    def get_icon_from_favicon_url(self, tab):
+        image = try_parse_icon_from_favicon_inline_contents(tab['favIconUrl'])
+
+        # Convert to pixbuf
+        if image is not None:
+            image = self._store_image_contents_as_in_icon_cache(tab, image)
+
+        return image
+
+    def _store_image_contents_as_in_icon_cache(self, tab, image):
+        image = self._get_pixbuf_from_image_contents(image)
+
+        # Update cache
+        if image is None:
+            print(traceback.format_exc())
+            print("Error generating icon from URL (first 20 chars): {}. tab title: {}".format(url[:20], tab['title']))
+        else:
+            self._icon_cache[tab['favIconUrl']] = image
+
+        return image
+
+    def _get_tab_icon_from_local_cache(self, tab):
+        result = None
+
+        # Fetch icon from local cache, if exists
+        if 'favIconUrl' in tab and tab['favIconUrl'] is not None:
+            icon_url = tab['favIconUrl'] 
+            is_tab_icon_in_cache = icon_url in self._icon_cache
+            if is_tab_icon_in_cache:
+                result = self._icon_cache[icon_url]
+        
+        return result
+
+    def _get_pixbuf_from_image_contents(self, contents):
+        result = None
+
+        try:
+            input_stream = Gio.MemoryInputStream.new_from_data(contents, None)
+            pixbuf = Pixbuf.new_from_stream(input_stream, None)
+            result = pixbuf.scale_simple(self.ICON_SIZE, self.ICON_SIZE, InterpType.BILINEAR)
+        except:
+            print(traceback.format_exc())
+            print("Error generating icon from URL ")
+
+        return result
+
+    def _update_visibility_map_for_window_and_its_tabs(self, window_id, window):
+        """Update visibility map with score of window and its tabs."""
+
+        # Set title as token
+        window_token = window.get_label()
+        window_type_str = window.window.wm_class.decode('utf-8')
+        window_score = self.get_score(window_token, window_type_str)
+        window_uid = (window_id, 0, "")
+        self._score_manager.set_score(window_uid, window_score, window.get_label())
+        is_window_visible = self._score_manager.is_visible(window_uid)
+
+        # Calculate tabs scores
+        window_has_tabs = window.get_pid() in self._tabs
+        if window_has_tabs and window.is_browser():
+            tabs = self._tabs[window.get_pid()]
+            for tab in tabs:
+                tab_token = tab['title']
+                tab_uid = (window_id, tab['id'], "")
+                tab_score = self.get_score(tab_token, window_type_str)
+                self._score_manager.set_score(tab_uid, tab_score, tab_token)
+                is_window_visible = is_window_visible or self._score_manager.is_visible(tab_uid)
+
+        self._score_manager.override_visiblity(window_uid, is_window_visible)
+
+    def _lookup_visibility_map(self, row_id):
+        return self._score_manager.is_visible(row_id)
+
+    def should_row_be_visible(self, row_id):
+        is_visible_according_to_map = self._lookup_visibility_map(row_id)
+
+        if is_visible_according_to_map is None:
+            should_be_visible = True
+        else:
+            should_be_visible = is_visible_according_to_map
+
+        return should_be_visible
+
+    def _update_visibility_map(self):
         # Initialize iterator to first row
         self._score_manager.reset()
 
@@ -336,9 +527,9 @@ class EntriesTree(object):
                 is_there_a_descendant_in_child_subtree = self._update_visibility_map_recursively(child_bookmark)
                 is_there_a_visible_descendent = is_there_a_visible_descendent or is_there_a_descendant_in_child_subtree
 
-        score = self._get_score(bookmark['name'] + ' ' + bookmark.get('url', ''), 'bookmark')
+        score = self.get_score(bookmark['name'] + ' ' + bookmark.get('url', ''), 'bookmark')
         uid = (0, 0, bookmark['guid'])
-        self._score_manager.set_score(uid, score)
+        self._score_manager.set_score(uid, score, bookmark['name'])
 
         # Make node visible if it has a visible descendant or if the label matches
         if is_there_a_visible_descendent:
@@ -346,13 +537,9 @@ class EntriesTree(object):
 
         return self._score_manager.is_visible(uid)
 
-    def _get_row_unique_id(self, row):
-        return row[COL_NR_ENTRY_ID_INT], row[COL_NR_ENTRY_ID_INT2], row[COL_NR_ENTRY_ID_STR]
-
-    def _set_entry_in_visibility_map(self, row, value):
-        row_id = self._get_row_unique_id(row)
-        self._score_manager.set_score(row_id, value)
-
-    def _lookup_visibility_map(self, row):
-        row_id = self._get_row_unique_id(row)
-        return self._score_manager.is_visible(row_id)
+    def get_score(self, title, type_str):
+        score = self._listfilter.get_candidate_score(title)
+        if type_str is not None and type_str:
+            type_str_score = self._listfilter.get_candidate_score(type_str)
+            score = max(score, type_str_score)
+        return score

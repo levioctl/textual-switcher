@@ -24,6 +24,7 @@ class BookmarksStore(object):
                 self._list_bookmarks_callback,
                 self._get_local_cache_callback,
                 self._write_callback)
+        self._cloudfilesynchronizerthread.start()
 
     def async_list_bookmarks(self):
         if self._bookmarks is None:
@@ -123,14 +124,11 @@ class BookmarksStore(object):
         bookmarks_yaml = bookmarks_yaml.decode('utf-8')
         self._update_local_copy(bookmarks_yaml)
 
-        print("Bookmarks received from cloud. Validating file structure...")
         was_fix_needed = self._fix_bookmarks()
 
         if was_fix_needed:
-            print("Writing fixed bookmarks...")
             self._async_write()
         else:
-            print("No fix needed.")
             self._list_bookmarks_main_glib_loop_callback(self._bookmarks, is_connected=True)
 
     def _fix_bookmarks(self):
@@ -159,7 +157,6 @@ class BookmarksStore(object):
         return was_fix_needed
 
     def _get_local_cache_callback(self, bookmarks_yaml_cache):
-        print("Bookmarks read from local cache.")
         if self._bookmarks is None:
             self._update_local_copy(bookmarks_yaml_cache)
             self._list_bookmarks_main_glib_loop_callback(self._bookmarks, is_connected=False)

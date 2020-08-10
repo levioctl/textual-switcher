@@ -7,11 +7,9 @@ from gi.repository import Gtk, GdkX11, GLib
 
 
 class DefaultApp:
-    def __init__(self, switcher_window, _entriestree, status_label, _bookmark_store):
+    def __init__(self, entries_datamodel, switcher_window, switch_app_func):
+        self._entries_model = entries_datamodel
         self._switcher_window = switcher_window
-        self._entriestree = _entriestree
-        self._status_label = status_label
-        self._bookmark_store = _bookmark_store
         self._is_ctrl_pressed = False
         self._is_shift_pressed = False
         self._actions = {keycodes.KEYCODE_ARROW_DOWN    : self._switcher_window.select_next_item,
@@ -23,41 +21,36 @@ class DefaultApp:
                          keycodes.KEYCODE_CTRL_J        : self._switcher_window.select_next_item,
                          keycodes.KEYCODE_CTRL_K        : self._switcher_window.select_previous_item,
                          keycodes.KEYCODE_CTRL_C        : lambda: self._switcher_window.set_visible(False),
-                         keycodes.KEYCODE_CTRL_L        : self._refresh,
-                         keycodes.KEYCODE_CTRL_W        : lambda: self._switcher_window.empty_search_textbox(),
+                         keycodes.KEYCODE_CTRL_L        : self._switcher_window.select_first_window,
+                         keycodes.KEYCODE_CTRL_W        : self._switcher_window.empty_search_textbox,
                          keycodes.KEYCODE_CTRL_BACKSPACE: self._term_selected_process,
                          keycodes.KEYCODE_CTRL_BACKSLASH: self._kill_selected_process,
-                         keycodes.KEYCODE_CTRL_H        : self._switcher_window.toggle_help_next,
+                         keycodes.KEYCODE_CTRL_H        : self._switcher_window.toggle_help_text,
+                         keycodes.KEYCODE_CTRL_R        : self._async_refresh_entries,
                          keycodes.KEYCODE_CTRL_SPACE    : self._toggle_expanded_mode
         }
+        self._switch_app = switch_app_func
 
     def switch(self):
         pass
 
     def _kill_selected_process(self):
         if self._is_ctrl_pressed:
-            self._switcher_window.send_signal_to_selected_process(signal.SIGKILL)
+            self._entries_model.send_signal_to_selected_process(signal.SIGKILL)
 
     def _term_selected_process(self):
         if self._is_ctrl_pressed:
-            self._switcher_window.send_signal_to_selected_process(signal.SIGTERM)
-
-    def _refresh(self):
-        self._switcher_window.async_list_windows()
-        self._entriestree.select_first_window()
+            self._entries_model.send_signal_to_selected_process(signal.SIGTERM)
 
     def _toggle_expanded_mode(self):
         pass
 
     def _terminate(self):
-        self._switcher_window.send_signal_to_selected_process(signal.SIGTERM)
+        self._entries_model.send_signal_to_selected_process(signal.SIGTERM)
 
-    def handle_keypress(self, *args):
-        keycode = args[1].get_keycode()[1]
-        state = args[1].get_state()
-        self._is_ctrl_pressed = (state & state.CONTROL_MASK).bit_length() > 0
-        self._is_shift_pressed = (state & state.SHIFT_MASK).bit_length() > 0
-        keycode = (self._is_ctrl_pressed, self._is_shift_pressed, keycode)
+    def handle_keypress(self, keycode, is_ctrl_pressed, is_shift_pressed):
+        keycode = (is_ctrl_pressed, is_shift_pressed, keycode)
+        print(keycode)
         if keycode in self._actions:
             action = self._actions[keycode]
             action()
@@ -67,3 +60,8 @@ class DefaultApp:
 
     def handle_entry_selection(self):
         pass
+
+    def _async_refresh_entries(self):
+        print("Clearing...")
+        self._entries_model.async_list_entries()
+        self._switcher_window._status_label.set_text("Bookmarks: Reading from drive...")

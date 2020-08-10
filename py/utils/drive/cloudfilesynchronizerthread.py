@@ -29,7 +29,6 @@ class CloudFileSynchronizerThread(threading.Thread):
         self._local_cache = None
         super(CloudFileSynchronizerThread, self).__init__()
         self.daemon = True
-        self.start()
 
     def run(self):
         contents = self._read_cache_once()
@@ -79,6 +78,7 @@ class CloudFileSynchronizerThread(threading.Thread):
                 contents = local_file.read()
         except:
             print("Could not read bookmarks from local cache: {}".format(traceback.format_exc()))
+
         return contents
 
     def _is_connected(self):

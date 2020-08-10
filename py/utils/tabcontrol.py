@@ -1,31 +1,11 @@
 import os
 import json
-import base64
 import struct
 import logging
 import os.path
 import traceback
 import unicodedata
-import expiringdict
-import glib_wrappers
-from gi.repository import GLib, Gio
-from gi.repository.GdkPixbuf import Pixbuf
-
-
-KNOWN_ICON_TYPES = (
-                    "x-icon",
-                    "png",
-                    "gif",
-                    "x-iconbase64",
-                    "pngbase64",
-                    "jpeg",
-                    "svg+xml",
-                    )
-KNOWN_BASE64_ICON_TYPES = (
-                           "x-iconbase64",
-                           "pngbase64",
-                           #"svg+xml",
-                           )
+from gi.repository import GLib
 
 
 logger = logging.getLogger(__file__)
@@ -140,7 +120,6 @@ class BrowserTabLister(object):
         command = 'move_to_tab:%d;' % (tab_id)
         os.write(self._out_fd, command)
 
-
     def async_list_tabs(self):
         if self._is_updated:
             self._is_updated = False
@@ -201,6 +180,7 @@ class BrowserTabLister(object):
             except:
                 print('cannot load content of size {}:'.format(len(content)))
                 return
+
             self._update_tabs_callback(self.pid, tabs)
             self._is_updated = True
 
@@ -209,18 +189,10 @@ class BrowserTabLister(object):
 
 
 class TabControl(object):
-    ONE_MONTH_IN_SECONDS = 60 * 60 * 24 * 7 * 4
-
     def __init__(self, update_tabs_callback, update_tab_icon_callback):
+        self._update_tabs_callback = update_tabs_callback
         self._update_tab_icon_callback = update_tab_icon_callback
         self.browsers = dict()
-        self._icon_cache = expiringdict.ExpiringDict(max_len=100, max_age_seconds=self.ONE_MONTH_IN_SECONDS)
-
-        def read_and_update_tabs(pid, tabs):
-            self._populate_tabs_icons(tabs)
-            update_tabs_callback(pid, tabs)
-
-        self._update_tabs_callback = read_and_update_tabs
 
     def async_list_browsers_tabs(self, active_browsers):
         self._clean_stale_browsers(active_browsers)
@@ -245,58 +217,6 @@ class TabControl(object):
                 return False
         return True
 
-    def get_tab_icon(self, tab, fetch_if_missing=False):
-        icon = None
-        if 'favIconUrl' in tab and tab['favIconUrl'] is not None:
-            if tab['favIconUrl'] in self._icon_cache:
-                icon = self._icon_cache[tab['favIconUrl']]
-            else:
-                # Async read icon from URL by scheduling the ready callback
-                self._icon_cache[tab['favIconUrl']] = None
-                url = tab["favIconUrl"]
-
-                for image_prefix in KNOWN_ICON_TYPES:
-                    # Try parsing image as inline
-                    image = None
-                    is_base64 = False
-
-                    # Populate `image` and `is_base64`
-                    if url.startswith("data:image/{},".format(image_prefix)):
-                        image_type, image = url.split('/', 1)[1].split(',', 1)
-                        if image_type in KNOWN_BASE64_ICON_TYPES:
-                            is_base64 = True
-                    elif url.startswith("data:image/{};".format(image_prefix)):
-                        _, parameter_and_image = url.split('/', 1)[1].split(';', 1)
-
-                        if parameter_and_image.startswith("base64,"):
-                            image = parameter_and_image.split(',', 1)[1]
-                            is_base64 = True
-
-                    # Act on `image` and `base64`
-                    if image is not None:
-                        if is_base64:
-                            image = base64.b64decode(image)
-                        self._tab_icon_ready(url, image, tab)
-                        break
-                else:
-                    # Parse image as URL
-                    def callback(url, contents):
-                        return self._tab_icon_ready(url, contents, tab)
-
-                    glib_wrappers.async_get_url(url, callback)
-        return icon
-
-    def _tab_icon_ready(self, url, contents, tab):
-        try:
-            input_stream = Gio.MemoryInputStream.new_from_data(contents, None)
-            pixbuf = Pixbuf.new_from_stream(input_stream, None)
-        except:
-            print(traceback.format_exc())
-            print("Error generating icon from URL (first 20 chars): {}. tab title: {}".format(url[:20], tab['title']))
-            return
-        self._icon_cache[url] = pixbuf
-        self._update_tab_icon_callback(url, contents)
-
     def _clean_stale_browsers(self, active_browsers):
         active_browser_pids = set([browser.pid for browser in active_browsers])
         stale_browser_pids = [browser_pid for browser_pid in self.browsers.keys()
@@ -305,7 +225,3 @@ class TabControl(object):
         for browser in stale_browser_pids:
             browser._clean_fds()
             del self.browsers[browser.pid]
-
-    def _populate_tabs_icons(self, tabs):
-        for tab in tabs:
-            tab['icon'] = self.get_tab_icon(tab, fetch_if_missing=True)
