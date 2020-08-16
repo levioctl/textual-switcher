@@ -11,7 +11,7 @@ install: launch
 	@echo 'Installing switcher... (see log in installation.log)'
 	@sudo mkdir -p ~/.config/textual-switcher >> installation.log 2>&1
 	@sudo mkdir -p ${INSTALL_DIR} >> installation.log 2>&1
-	@sudo cp py/* launch browser-agent/api_proxy_native_app.py ${INSTALL_DIR} >> installation.log 2>&1
+	@sudo cp -r py/* launch browser-agent/api_proxy_native_app.py ${INSTALL_DIR} >> installation.log 2>&1
 	@echo Creating PID file... >> installation.log 2>&1
 	@touch ${LOCKFILE_PATH}
 	@echo Setting the keyboard shortcut... >> installation.log 2>&1
