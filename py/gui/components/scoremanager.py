@@ -39,4 +39,3 @@ class ScoreManager(object):
             return None
         max_score = max(self._score_map.itervalues())
         return [uid for uid, score in self._score_map.iteritems() if score == max_score]
-

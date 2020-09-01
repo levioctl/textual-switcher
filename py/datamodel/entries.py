@@ -31,11 +31,6 @@ class Entries(object):
         else:
             self._external_list_bookmarks_callback(bookmarks, is_connected)
 
-    #def _expand_row_by_iter(self, row_iter):
-    #    model = self.treeview.get_model()
-    #    row = model[row_iter]
-    #    self.treeview.expand_row(row.path, True)
-
     def _connected_to_cloud_callback(self):
         print("Connected to cloud")
 
@@ -54,7 +49,6 @@ class Entries(object):
         stale_browser_pids = [pid for pid in self._tabs if pid not in active_browsers_pids]
         for pid in stale_browser_pids:
             del self._tabs[pid]
-        print("Listing browser tabs for {}".format(windows))
         self._tabcontrol.async_list_browsers_tabs(active_browsers)
 
     def _update_tabs_callback(self, pid, tabs):

@@ -21,7 +21,7 @@ class DefaultApp:
                          keycodes.KEYCODE_CTRL_J        : self._switcher_window.select_next_item,
                          keycodes.KEYCODE_CTRL_K        : self._switcher_window.select_previous_item,
                          keycodes.KEYCODE_CTRL_C        : lambda: self._switcher_window.set_visible(False),
-                         keycodes.KEYCODE_CTRL_L        : self._switcher_window.select_first_window,
+                         keycodes.KEYCODE_CTRL_L        : self._switcher_window.select_first_row,
                          keycodes.KEYCODE_CTRL_W        : self._switcher_window.empty_search_textbox,
                          keycodes.KEYCODE_CTRL_BACKSPACE: self._term_selected_process,
                          keycodes.KEYCODE_CTRL_BACKSLASH: self._kill_selected_process,
@@ -50,7 +50,6 @@ class DefaultApp:
 
     def handle_keypress(self, keycode, is_ctrl_pressed, is_shift_pressed):
         keycode = (is_ctrl_pressed, is_shift_pressed, keycode)
-        print(keycode)
         if keycode in self._actions:
             action = self._actions[keycode]
             action()
@@ -62,6 +61,5 @@ class DefaultApp:
         pass
 
     def _async_refresh_entries(self):
-        print("Clearing...")
         self._entries_model.async_list_entries()
         self._switcher_window._status_label.set_text("Bookmarks: Reading from drive...")

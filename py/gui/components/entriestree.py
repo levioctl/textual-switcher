@@ -88,10 +88,12 @@ class EntriesTree(object):
         self.tree = self._create_tree()
         self.treefilter = self._create_tree_filter()
         self.treeview = Gtk.TreeView.new_with_model(self.treefilter)
+        self._row_selected_external_callback = row_selected_callback
         self.treeview.set_headers_visible(False)
+        self._currently_selected_row = None
         self.treeview.connect("row-activated", row_activated_callback)
         self.treeview.connect("key-press-event", treeview_keypress)
-        self.treeview.connect("cursor-changed", row_selected_callback)
+        self.treeview.connect("cursor-changed", self._row_selected_callback)
 
         column = Gtk.TreeViewColumn("")
 
@@ -113,15 +115,30 @@ class EntriesTree(object):
         self.treeview.set_enable_tree_lines(True)
         self._listfilter = listfilter.ListFilter()
         self._score_manager = scoremanager.ScoreManager()
+        self.select_first_row()
+
+    def _row_selected_callback(self, *_):
+        # Get selected row
+        _, _iter = self.treeview.get_selection().get_selected()
+        model = self.treeview.get_model()
+        if model is None:
+            self.select_first_row()
+            return
+        if _iter is None:
+            self.select_first_row()
+            return
+        row = model[_iter]
+
+        # Store currently selected row ID
+        if row is not None:
+            row_id = self._get_row_unique_id(row)
+            self._currently_selected_row = row_id
+            self._row_selected_external_callback()
 
     def update_search_key(self, search_key):
         self._s = search_key
         self._listfilter.update_search_key(search_key)
-        self._update_visibility_map()
-        self.treefilter.refilter()
-        if len(self.tree):
-            self.select_best_matching_visible_row()
-        self.enforce_expanded_mode()
+        self._refresh()
 
     def _create_tree_filter(self):
         tree_filter = self.tree.filter_new()
@@ -130,13 +147,11 @@ class EntriesTree(object):
 
     def _create_tree(self):
         tree = Gtk.TreeStore(int, Pixbuf, str, int, int, str, str)
-        tree.set_sort_column_id(1, Gtk.SortType.ASCENDING)
-        tree.set_sort_func(1, self._compare_windows)
+        tree.set_default_sort_func(self._compare_windows)
         return tree
 
     def _should_row_be_visible(self, model, _iter, _):
         if not self._s:
-            self.select_first_window()
             return True
 
         row = model[_iter]
@@ -146,46 +161,57 @@ class EntriesTree(object):
         return self.should_row_be_visible(row_id)
 
     def _refresh(self):
-        self.tree.clear()
-        self._add_windows_and_tabs_to_tree()
-        self._add_bookmarks_entries_to_tree()
+        self.tree.set_default_sort_func(self._compare_windows)
+        self._update_visibility_map()
         self.treefilter.refilter()
         self.enforce_expanded_mode()
         self.select_best_matching_visible_row()
 
+    def _find_first_row_of_record_type(self, record_type):
+        model = self.treeview.get_model()
+        row_iter = model.get_iter_first()
+        result = None
+        while row_iter is not None:
+            # Get row from iterator
+            row = model[row_iter]
+
+            # Remove row if its a window or a tab
+            xid = row[COL_NR_ENTRY_ID_INT] 
+            if row[COL_NR_RECORD_TYPE] == record_type:
+                # The following conversion is needed because of the use of treemodefilter
+                result = self.treefilter.convert_iter_to_child_iter(row_iter)
+                break
+
+            row_iter = model.iter_next(row_iter)
+
+        return result
+
+    def _remove_all_rows_of_record_type(self, record_type):
+        # Remove existing window entries
+        do_windows_still_exist_in_list = True
+        while do_windows_still_exist_in_list:
+            # Find next window/tab (iterate from beginning at each removal since iterator becomes invalid)
+
+            window_row_iter = self._find_first_row_of_record_type(record_type)
+            was_a_window_found_in_list = window_row_iter is not None
+            if was_a_window_found_in_list:
+                self.tree.remove(window_row_iter)
+            else:
+                # No more windows/tabs
+                do_windows_still_exist_in_list = False
+
     def update_windows(self, windows):
+        # Update cache
         self._windows = windows
+
+        # Remove existing treeview rows of windows
+        self._remove_all_rows_of_record_type(RECORD_TYPE_WINDOW)
+
+        # Populate treeview with rows for updated windows
+        self._add_windows_and_tabs_to_tree()
+
+        # Refresh view
         self._refresh()
-
-        ## Refresh existing window entries
-        #removed_set = set()
-        #while True:
-        #    # Find next window/tab
-        #    model = self.treeview.get_model()
-        #    row_iter = model.get_iter_first()
-        #    window_row_iter = None
-        #    while row_iter is not None:
-        #        # Get row from iterator
-        #        row = model[row_iter]
-
-        #        # Remove row if its a window or a tab
-        #        xid = row[COL_NR_ENTRY_ID_INT] 
-        #        if row[COL_NR_RECORD_TYPE] == RECORD_TYPE_WINDOW and xid not in removed_set:
-        #            removed_set.add(xid)
-        #            window_row_iter = row_iter
-        #            break
-
-        #        row_iter = model.iter_next(row_iter)
-
-        #    if window_row_iter is None:
-        #        # No more windows/tabs
-        #        break
-        #    else:
-        #        xid = row[COL_NR_ENTRY_ID_INT]
-        #        window = self._windows[xid]
-        #        print("Removing entry '{}'".format(window_row_iter))
-        #        self.tree.remove(window_row_iter)
-        #        self.treefilter.refilter()
 
     def _add_windows_and_tabs_to_tree(self):
         # Add windows to treeview
@@ -197,25 +223,43 @@ class EntriesTree(object):
 
             if window.is_browser():
                 self._pid_to_row_iter[window.get_pid()] = row_iter
-                self._add_tabs_of_window_to_treeview(window)
 
     def update_tabs(self, pid, tabs):
+        # Validate
         # Make sure window is in local cache
         matching_windows = [window for window in self._windows.itervalues() if window.get_pid() == pid]
         if not matching_windows:
-            raise RuntimeError("Received tabs for a nonexistent window")
-        if len(matching_windows) > 1:
-            raise RuntimeError("Local cache contains multuple entries with same PID {}".format(pid))
+            print("Received tabs for a nonexistent window: {}".format(pid))
+            return
+        # The following is commented out, as there can be mulltiple browser windows with same PID
+        #if len(matching_windows) > 1:
+        #    raise RuntimeError("Local cache contains multuple entries with same PID {}".format(pid))
         window = matching_windows[0]
+
+        if not window.is_browser():
+            print("Received tabs for a non-browser window: {}".format(pid))
+            return
 
         # Update local cache of tabs
         self._tabs[pid] = tabs
 
-        # Update treeview
+        # Add tabs
+        self._add_tabs_of_window_to_treeview(window)
+
+        # Refresh view
         self._refresh()
 
     def update_bookmarks(self, bookmarks):
+        # Update cache
         self._bookmarks = bookmarks
+
+        # Remove the bookmark row
+        self._remove_all_rows_of_record_type(RECORD_TYPE_BOOKMARKS_DIR)
+
+        # Add rows with updated bookmarks
+        self._add_bookmarks_entries_to_tree()
+
+        # Refresh view
         self._refresh()
 
     def _add_bookmarks_entries_to_tree(self):
@@ -246,18 +290,14 @@ class EntriesTree(object):
                 for child in bookmark['children']:
                     dfs_stack.append((child, row_iter))
 
-    #def _expand_row_by_iter(self, row_iter):
-    #    model = self.treeview.get_model()
-    #    row = model[row_iter]
-    #    self.treeview.expand_row(row.path, True)
-
     def enforce_expanded_mode(self):
         if self.expanded_mode:
             self.treeview.expand_all()
         else:
             self.treeview.collapse_all()
 
-    def select_first_window(self):
+    def select_first_row(self):
+        print("Selecting first row")
         if len(self.tree):
             self.treeview.set_cursor(0)
 
@@ -286,7 +326,8 @@ class EntriesTree(object):
                         self._async_get_tab_icon_contents_from_url(tab)
                 else:
                     # Tab does not have an icon
-                    print("Tab {} does not have a favIconUrl".format(tab['title']))
+                    #print("Tab {} does not have a favIconUrl".format(tab['title']))
+                    pass
 
                 # If no icon was found now, use the window icon in the meantime
                 if icon is None:
@@ -324,26 +365,23 @@ class EntriesTree(object):
         self.tree.set_value(tab_row_iter, COL_NR_ICON, self._icon_cache[tab['favIconUrl']])
 
     def select_best_matching_visible_row(self):
+        print("Selecting best matching row...")
+
         max_score_uids = self._score_manager.get_max_score_uids()
         if max_score_uids is None:
-            print('max_score_uids is none')
-            self.select_first_window()
+            print("Max score UIDs is none, selecting first row")
+            self.select_first_row()
             return
 
-        # Get selected row
-        _, _iter = self.treeview.get_selection().get_selected()
+        # Populate DFS stack with tree roots
+        dfs_stack = []
         model = self.treeview.get_model()
-        if _iter is None:
-            print('iter is none')
-            _iter = model.get_iter_first()
-            if _iter is None:
-                print('iter is none2')
-                self.select_first_window()
-        row = model[_iter]
+        row_iter = model.get_iter_first()
+        while row_iter is not None:
+            dfs_stack.append(model[row_iter])
+            row_iter = model.iter_next(row_iter)
 
-        # Find best score row under selected row by DFS search
-        if row is not None:
-            dfs_stack = [row]
+        if dfs_stack:
             max_score_row = None
             while dfs_stack:
                 # Check if current row is max score row by UID
@@ -351,7 +389,6 @@ class EntriesTree(object):
                 uid = self._get_row_unique_id(row)
                 if uid in max_score_uids:
                     max_score_row = row
-
 
                 # Add children to scack
                 child_iter = model.iter_children(row.iter)
@@ -399,8 +436,10 @@ class EntriesTree(object):
         window_b_score = self.get_score(window_b.window.title, window_b.window.wm_class)
 
         if window_a_score > window_b_score:
+            print(window_a.window.title, '>', window_b.window.title)
             return -1
         elif window_b_score > window_a_score:
+            print(window_b.window.title, '>', window_a.window.title)
             return 1
         return 0
 
@@ -431,11 +470,12 @@ class EntriesTree(object):
         image = self._get_pixbuf_from_image_contents(image)
 
         # Update cache
+        url = tab['favIconUrl']
         if image is None:
             print(traceback.format_exc())
             print("Error generating icon from URL (first 20 chars): {}. tab title: {}".format(url[:20], tab['title']))
         else:
-            self._icon_cache[tab['favIconUrl']] = image
+            self._icon_cache[url] = image
 
         return image
 
@@ -482,7 +522,7 @@ class EntriesTree(object):
             for tab in tabs:
                 tab_token = tab['title']
                 tab_uid = (window_id, tab['id'], "")
-                tab_score = self.get_score(tab_token, window_type_str)
+                tab_score = self.get_score(tab_token, "tab")
                 self._score_manager.set_score(tab_uid, tab_score, tab_token)
                 is_window_visible = is_window_visible or self._score_manager.is_visible(tab_uid)
 
@@ -510,11 +550,10 @@ class EntriesTree(object):
             self._update_visibility_map_for_window_and_its_tabs(window_id, window)
 
         # Invoke recursive map update function on all root nodes
-        is_there_a_visible_bookmark = False
         for bookmark in self._bookmarks:
-            is_there_a_visible_bookmark = is_there_a_visible_bookmark or self._update_visibility_map_recursively(bookmark)
-        uid = (0, 0, 'ROOT')
-        self._score_manager.override_visiblity(uid, is_there_a_visible_bookmark)
+            self._update_visibility_map_recursively(bookmark)
+        #uid = (0, 0, 'ROOT')
+        #self._score_manager.override_visiblity(uid, is_there_a_visible_bookmark)
 
     def _update_visibility_map_recursively(self, bookmark):
         """Update visibility map for bookmark and all its subtree, and return whether it's visible (bool)."""

@@ -52,7 +52,7 @@ class EntryWindow(Gtk.Window):
                                                            self._entry_activated_callback,
                                                            self._entriestree,
                                                            )
-        self._entriestree.select_first_window()
+        self._entriestree.select_first_row()
         glib_wrappers.register_signal(self._focus_on_me, signal.SIGHUP)
         self._set_window_properties()
         self._help_label = self._create_help_label()
@@ -65,8 +65,8 @@ class EntryWindow(Gtk.Window):
         self._external_entry_activated_callback = entry_activated_callback
         self._external_entry_selected_callback = entry_selected_callback
 
-    def select_first_window(self):
-        self._entriestree.select_first_window()
+    def select_first_row(self):
+        self._entriestree.select_first_row()
 
     def _keypress_callback(self, *args):
         keycode = args[1].get_keycode()[1]
@@ -127,11 +127,12 @@ class EntryWindow(Gtk.Window):
             self._entriestree.treeview.set_cursor(nr_rows - 1)
 
     def select_next_item(self):
+        # Get iterator to selected
         model, _iter = self._entriestree.get_selected_row()
-
         if _iter is None:
             return
 
+        # Get next row
         row = model[_iter]
         if self._entriestree.expanded_mode:
             try:
