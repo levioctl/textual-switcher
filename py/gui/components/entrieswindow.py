@@ -181,7 +181,7 @@ class EntryWindow(Gtk.Window):
 
     def _treeview_keypress(self, *args):
         keycode = args[1].get_keycode()[1]
-        if keycode not in (keycodes.KEYCODE_ARROW_UP, keycodes.KEYCODE_ARROW_DOWN):
+        if keycode not in (keycodes.KEYCODES["ARROW_UP"], keycodes.KEYCODES["ARROW_DOWN"]):
             self._search_textbox.element.grab_focus()
 
     def send_signal_to_selected_process(self, signal_type):

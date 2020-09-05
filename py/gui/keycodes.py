@@ -1,20 +1,33 @@
-# NAME                     CTRL   SHIFT  KEYCODE
-KEYCODE_ESCAPE          = (False, False, 9  )
-KEYCODE_ARROW_DOWN      = (False, False, 116)
-KEYCODE_ARROW_UP        = (False, False, 111)
-KEYCODE_CTRL_A          = (True,  False, 38 )
-KEYCODE_CTRL_J          = (True,  False, 44 )
-KEYCODE_CTRL_K          = (True,  False, 45 )
-KEYCODE_CTRL_R          = (True,  False, 27 )
-KEYCODE_CTRL_L          = (True,  False, 46 )
-KEYCODE_CTRL_W          = (True,  False, 25 )
-KEYCODE_CTRL_C          = (True,  False, 54 )
-KEYCODE_CTRL_D          = (True,  False, 40 )
-KEYCODE_CTRL_H          = (True,  False, 43 )
-KEYCODE_CTRL_BACKSLASH  = (True,  False, 22 )
-KEYCODE_CTRL_BACKSPACE  = (True,  False, 51 )
-KEYCODE_CTRL_SPACE      = (True,  False, 65 )
-KEYCODE_HYPEN           = (False, False, 20 )
-KEYCODE_CTRL_PLUS       = (True,  False, 21 )
-KEYCODE_CTRL_HYPHEN     = (True,  False, 20 )
-KEYCODE_CTRL_SHIFT_N    = (True,  True,  57 )
+KEYCODES = {'Escape'    : 9,
+            'Arrow_down': 116,
+            'Arrow_up'  : 111,
+            'A'         : 38,
+            'J'         : 44,
+            'K'         : 45,
+            'R'         : 27,
+            'L'         : 46,
+            'W'         : 25,
+            'C'         : 54,
+            'D'         : 40,
+            'H'         : 43,
+            'Backslash' : 22,
+            'Backspace' : 51,
+            'Space'     : 65,
+            'Hypen'     : 20,
+            'Equals'      : 21,
+            'Hyphen'    : 20,
+            'N'   : 57
+           }
+
+
+KEYCODE_TO_CHR = {value: key for (key, value) in KEYCODES.iteritems()}
+
+
+def parse_keycode_to_textual_repr(keycode, is_ctrl_pressed, is_shift_pressed):
+    keycode_text_repr = ""
+    if is_ctrl_pressed:
+        keycode_text_repr += "Ctrl+"
+    if is_shift_pressed:
+        keycode_text_repr += "Shift+"
+    keycode_text_repr += KEYCODE_TO_CHR.get(keycode, "UNKNOWN")
+    return keycode_text_repr

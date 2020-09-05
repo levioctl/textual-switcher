@@ -7,7 +7,7 @@ from gui.components import entriestree
 class BookmarksSearch(entriessearch.EntriesSearch):
     def __init__(self, *args, **kwrags):
         entriessearch.EntriesSearch.__init__(self, *args, **kwrags)
-        self._actions[keycodes.KEYCODE_CTRL_SHIFT_N] = self._add_folder
+        self._actions["Ctrl+Shift+N"] = self._add_folder
 
     def _add_folder(self):
         # Choose parent folder.

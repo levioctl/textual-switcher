@@ -12,22 +12,20 @@ class DefaultApp:
         self._switcher_window = switcher_window
         self._is_ctrl_pressed = False
         self._is_shift_pressed = False
-        self._actions = {keycodes.KEYCODE_ARROW_DOWN    : self._switcher_window.select_next_item,
-                         keycodes.KEYCODE_ARROW_UP      : self._switcher_window.select_previous_item,
-                         keycodes.KEYCODE_ARROW_DOWN    : self._switcher_window.select_next_item,
-                         keycodes.KEYCODE_ARROW_UP      : self._switcher_window.select_previous_item,
-                         keycodes.KEYCODE_ESCAPE        : lambda: sys.exit(0),
-                         keycodes.KEYCODE_CTRL_D        : self._switcher_window.select_last_item,
-                         keycodes.KEYCODE_CTRL_J        : self._switcher_window.select_next_item,
-                         keycodes.KEYCODE_CTRL_K        : self._switcher_window.select_previous_item,
-                         keycodes.KEYCODE_CTRL_C        : lambda: self._switcher_window.set_visible(False),
-                         keycodes.KEYCODE_CTRL_L        : self._switcher_window.select_first_row,
-                         keycodes.KEYCODE_CTRL_W        : self._switcher_window.empty_search_textbox,
-                         keycodes.KEYCODE_CTRL_BACKSPACE: self._term_selected_process,
-                         keycodes.KEYCODE_CTRL_BACKSLASH: self._kill_selected_process,
-                         keycodes.KEYCODE_CTRL_H        : self._switcher_window.toggle_help_text,
-                         keycodes.KEYCODE_CTRL_R        : self._async_refresh_entries,
-                         keycodes.KEYCODE_CTRL_SPACE    : self._toggle_expanded_mode
+        self._actions = {"Down": self._switcher_window.select_next_item,
+                         "Up": self._switcher_window.select_previous_item,
+                         "Escape"        : lambda: sys.exit(0),
+                         "Ctrl+D"        : self._switcher_window.select_last_item,
+                         "Ctrl+J"        : self._switcher_window.select_next_item,
+                         "Ctrl+K"        : self._switcher_window.select_previous_item,
+                         "Ctrl+C"        : lambda: self._switcher_window.set_visible(False),
+                         "Ctrl+L"        : self._switcher_window.select_first_row,
+                         "Ctrl+W"        : self._switcher_window.empty_search_textbox,
+                         "Ctrl+Backspace": self._term_selected_process,
+                         "Ctrl+Backslash": self._kill_selected_process,
+                         "Ctrl+H"                       : self._switcher_window.toggle_help_text,
+                         "Ctrl+R"                       : self._async_refresh_entries,
+                         "Ctrl+Space"     : self._toggle_expanded_mode
         }
         self._switch_app = switch_app_func
 
@@ -49,10 +47,13 @@ class DefaultApp:
         self._entries_model.send_signal_to_selected_process(signal.SIGTERM)
 
     def handle_keypress(self, keycode, is_ctrl_pressed, is_shift_pressed):
-        keycode = (is_ctrl_pressed, is_shift_pressed, keycode)
-        if keycode in self._actions:
-            action = self._actions[keycode]
+        keycode_textual_repr = keycodes.parse_keycode_to_textual_repr(keycode, is_ctrl_pressed, is_shift_pressed)
+
+        if keycode_textual_repr in self._actions:
+            action = self._actions[keycode_textual_repr]
             action()
+        else:
+            print(keycode_textual_repr, keycode)
 
     def handle_entry_activation(self):
         pass

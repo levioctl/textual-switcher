@@ -8,8 +8,8 @@ from gui.components import entriestree
 class EntriesSearch(defaultapp.DefaultApp):
     def __init__(self, *args, **kwrags):
         defaultapp.DefaultApp.__init__(self, *args, **kwrags)
-        self._actions[keycodes.KEYCODE_CTRL_PLUS] = self._choose_parent_dir_for_adding_bookmark
-        self._actions[keycodes.KEYCODE_CTRL_HYPHEN] = self._remove_bookmark
+        self._actions["Ctrl+Equals"] = self._choose_parent_dir_for_adding_bookmark
+        self._actions["Ctrl+Minus"] = self._remove_bookmark
 
     def _choose_parent_dir_for_adding_bookmark(self):
         # Get the tab dict in which url and title are stored
