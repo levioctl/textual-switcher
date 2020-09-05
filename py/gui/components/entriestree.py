@@ -132,10 +132,10 @@ class EntriesTree(object):
         return self.should_row_be_visible(row_id)
 
     def _refresh(self):
-        self.tree.set_default_sort_func(self._compare_windows)
         self._update_visibility_map()
         self.treefilter.refilter()
         self.enforce_expanded_mode()
+        self.tree.set_default_sort_func(self._compare_windows)
         self.select_best_matching_visible_row()
 
     def _find_first_row_of_record_type(self, record_type):
@@ -268,7 +268,6 @@ class EntriesTree(object):
             self.treeview.collapse_all()
 
     def select_first_row(self):
-        print("Selecting first row")
         if len(self.tree):
             self.treeview.set_cursor(0)
 
@@ -336,8 +335,6 @@ class EntriesTree(object):
         self.tree.set_value(tab_row_iter, COL_NR_ICON, self._icon_cache[tab['favIconUrl']])
 
     def select_best_matching_visible_row(self):
-        print("Selecting best matching row...")
-
         max_score_uids = self._score_manager.get_max_score_uids()
         if max_score_uids is None:
             print("Max score UIDs is none, selecting first row")
@@ -393,9 +390,9 @@ class EntriesTree(object):
         record_b_type = model[iter_b][COL_NR_RECORD_TYPE]
 
         if record_a_type not in(RECORD_TYPE_BROWSER_TAB, RECORD_TYPE_WINDOW):
-            return 1
-        if record_b_type not in(RECORD_TYPE_BROWSER_TAB, RECORD_TYPE_WINDOW):
             return -1
+        if record_b_type not in(RECORD_TYPE_BROWSER_TAB, RECORD_TYPE_WINDOW):
+            return 1
 
         window_a_id = model[iter_a][COL_NR_ENTRY_ID_INT]
         window_b_id = model[iter_b][COL_NR_ENTRY_ID_INT]

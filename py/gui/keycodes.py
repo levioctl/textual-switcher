@@ -13,10 +13,9 @@ KEYCODES = {'Escape'    : 9,
             'Backslash' : 22,
             'Backspace' : 51,
             'Space'     : 65,
-            'Hypen'     : 20,
-            'Equals'      : 21,
-            'Hyphen'    : 20,
-            'N'   : 57
+            'Hyphen'     : 20,
+            'Equals'    : 21,
+            'N'         : 57
            }
 
 
@@ -26,8 +25,8 @@ KEYCODE_TO_CHR = {value: key for (key, value) in KEYCODES.iteritems()}
 def parse_keycode_to_textual_repr(keycode, is_ctrl_pressed, is_shift_pressed):
     keycode_text_repr = ""
     if is_ctrl_pressed:
-        keycode_text_repr += "Ctrl+"
+        keycode_text_repr += "Ctrl_"
     if is_shift_pressed:
-        keycode_text_repr += "Shift+"
+        keycode_text_repr += "Shift_"
     keycode_text_repr += KEYCODE_TO_CHR.get(keycode, "UNKNOWN")
     return keycode_text_repr

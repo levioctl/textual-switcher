@@ -57,13 +57,14 @@ class BookmarksStore(object):
         if not self._bookmarks:
             raise RuntimeError("Cannot remove bookmark, inner bookmarks collection is empty")
 
-        item = self.get_parent_of_entry(bookmark_id)
-        if item == 'ROOT':
+        item = self.get_entry_by_guid(bookmark_id)
+        parent = self.get_parent_of_entry(bookmark_id)
+        if parent == 'ROOT':
             self._bookmarks.remove(item)
         elif item is None:
             raise ValueError("Did not find a bookmark with GUID: {}".format(bookmark_id))
         else:
-            parent_dir['children'].remove(item)
+            parent['children'].remove(item)
 
         self._async_write()
 

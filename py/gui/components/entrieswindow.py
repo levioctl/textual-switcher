@@ -15,17 +15,6 @@ from gui import window_entry
 
 class EntryWindow(Gtk.Window):
     WINDOW_TITLE = "Textual Switcher"
-
-    FULL_HELP_TEXT = ("Ctrl+J: Down\n"
-                      "Ctrl+K: Up\n"
-                      "Ctrl+W/U: Empty search filter\n"
-                      "Ctrl+L: First (+reload)\n"
-                      "Ctrl+D: Last\n"
-                      "Ctrl+Backspace: SIGTERM selected\n"
-                      "Ctrl+\\: SIGKILL selected\n"
-                      "Ctrl+C: Hide\n"
-                      "Ctrl+Space: Toggle expanded mode\n"
-                      "Ctrl+H: Toggle Help")
     SHORT_HELP_TEXT = "Ctrl+H: Toggle Help"
 
     def __init__(self):
@@ -190,9 +179,9 @@ class EntryWindow(Gtk.Window):
         os.kill(window.get_pid(), signal_type)
         self.async_list_windows()
 
-    def toggle_help_text(self):
+    def toggle_help_text(self, full_help_text):
         if self._help_label.get_text() == self.SHORT_HELP_TEXT:
-            self._help_label.set_text(self.FULL_HELP_TEXT)
+            self._help_label.set_text(full_help_text)
         else:
             self._help_label.set_text(self.SHORT_HELP_TEXT)
 

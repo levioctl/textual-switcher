@@ -86,7 +86,7 @@ class GoogleDriveFileSynchronizer(object):
         file_id = None
         for _file in self._client.list_files():
             # Process change
-            print('Found file: %s (%s)' % (_file.get('name'), _file.get('id')))
+            print('Found file in drive: %s (%s)' % (_file.get('name'), _file.get('id')))
             if _file.get('name') == os.path.basename(self._filename):
                 file_id = _file['id']
         return file_id
