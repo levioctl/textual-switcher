@@ -8,35 +8,6 @@ from utils import glib_wrappers
 from gui.components import listfilter, scoremanager
 
 
-def try_parse_icon_from_favicon_inline_contents(fav_icon_url):
-    image = None
-
-    for image_prefix in KNOWN_ICON_TYPES:
-        # Try parsing image as inline
-        image = None
-        is_base64 = False
-
-        # Populate `image` and `is_base64`
-        if fav_icon_url.startswith("data:image/{},".format(image_prefix)):
-            image_type, image = fav_icon_url.split('/', 1)[1].split(',', 1)
-            if image_type in KNOWN_BASE64_ICON_TYPES:
-                is_base64 = True
-        elif fav_icon_url.startswith("data:image/{};".format(image_prefix)):
-            _, parameter_and_image = fav_icon_url.split('/', 1)[1].split(';', 1)
-
-            if parameter_and_image.startswith("base64,"):
-                image = parameter_and_image.split(',', 1)[1]
-                is_base64 = True
-
-        # Act on `image` and `base64`
-        if image is not None:
-            if is_base64:
-                image = base64.b64decode(image)
-            break
-
-    return image
-
-
 (COL_NR_RECORD_TYPE,
  COL_NR_ICON,
  COL_NR_TITLE,
@@ -449,7 +420,7 @@ class EntriesTree(object):
 
         # Parse image as URL
         def callback(url, image):
-            icon = self._store_image_contents_as_in_icon_cache(tab, image)
+            icon = self._store_image_contents_in_icon_cache(tab, image)
 
             # Invoke update callback
             if icon is not None:
@@ -458,15 +429,15 @@ class EntriesTree(object):
         glib_wrappers.async_get_url(fav_icon_url, callback)
 
     def get_icon_from_favicon_url(self, tab):
-        image = try_parse_icon_from_favicon_inline_contents(tab['favIconUrl'])
+        image = self.try_parse_icon_from_favicon_inline_contents(tab['favIconUrl'])
 
         # Convert to pixbuf
         if image is not None:
-            image = self._store_image_contents_as_in_icon_cache(tab, image)
+            image = self._store_image_contents_in_icon_cache(tab, image)
 
         return image
 
-    def _store_image_contents_as_in_icon_cache(self, tab, image):
+    def _store_image_contents_in_icon_cache(self, tab, image):
         image = self._get_pixbuf_from_image_contents(image)
 
         # Update cache
@@ -582,3 +553,31 @@ class EntriesTree(object):
             type_str_score = self._listfilter.get_candidate_score(type_str)
             score = max(score, type_str_score)
         return score
+
+    def try_parse_icon_from_favicon_inline_contents(self, fav_icon_url):
+        image = None
+
+        for image_prefix in KNOWN_ICON_TYPES:
+            # Try parsing image as inline
+            image = None
+            is_base64 = False
+
+            # Populate `image` and `is_base64`
+            if fav_icon_url.startswith("data:image/{},".format(image_prefix)):
+                image_type, image = fav_icon_url.split('/', 1)[1].split(',', 1)
+                if image_type in KNOWN_BASE64_ICON_TYPES:
+                    is_base64 = True
+            elif fav_icon_url.startswith("data:image/{};".format(image_prefix)):
+                _, parameter_and_image = fav_icon_url.split('/', 1)[1].split(';', 1)
+
+                if parameter_and_image.startswith("base64,"):
+                    image = parameter_and_image.split(',', 1)[1]
+                    is_base64 = True
+
+            # Act on `image` and `base64`
+            if image is not None:
+                if is_base64:
+                    image = base64.b64decode(image)
+                break
+
+        return image
