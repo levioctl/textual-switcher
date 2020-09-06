@@ -64,7 +64,11 @@ class BookmarksStore(object):
         elif item is None:
             raise ValueError("Did not find a bookmark with GUID: {}".format(bookmark_id))
         else:
-            parent['children'].remove(item)
+            is_parent = 'children' in item and item['children']
+            if is_parent:
+                raise ValueError("Cannot remove an entry with children")
+            else:
+                parent['children'].remove(item)
 
         self._async_write()
 

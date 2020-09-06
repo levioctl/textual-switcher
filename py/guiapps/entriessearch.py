@@ -13,10 +13,6 @@ class EntriesSearch(defaultapp.DefaultApp):
         """Add selected tab as bookmark"""
         self._choose_parent_dir_for_adding_bookmark()
 
-    def handle_key_Ctrl_Hyphen(self):
-        """Remove selected bookmark from bookmarks"""
-        self._remove_bookmark()
-
     def _choose_parent_dir_for_adding_bookmark(self):
         # Get the tab dict in which url and title are stored
         tab_id = self._switcher_window._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_ID_INT2)
@@ -58,7 +54,20 @@ class EntriesSearch(defaultapp.DefaultApp):
 
     def _remove_bookmark(self):
         record_type = self._switcher_window._entriestree.get_value_of_selected_row(entriestree.COL_NR_RECORD_TYPE)
+        # Validate selection is a bookmark/dir entry
+        if record_type not in (entriestree.RECORD_TYPE_BOOKMARK_ENTRY, entriestree.RECORD_TYPE_BOOKMARKS_DIR):
+            raise RuntimeError("Cannot remove a non-bookmark entry")
+
+        bookmark_id = self._switcher_window._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_ID_STR)
+
+        # Set status label to inform on bookmark removal attempt
         if record_type == entriestree.RECORD_TYPE_BOOKMARK_ENTRY:
-            bookmark_id = self._switcher_window._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_ID_STR)
-            self._entries_model._bookmark_store.remove(bookmark_id)
             self._switcher_window._status_label.set_text("Removing bookmark...")
+        elif record_type == entriestree.RECORD_TYPE_BOOKMARKS_DIR:
+            self._switcher_window._status_label.set_text("Removing bookmark dir...")
+
+        # Try remove bookmark
+        try:
+            self._entries_model._bookmark_store.remove(bookmark_id)
+        except ValueError as ex:
+            self._switcher_window._status_label.set_text(ex.message)

@@ -13,7 +13,7 @@ KEYCODES = {'Escape'    : 9,
             'Backslash' : 22,
             'Backspace' : 51,
             'Space'     : 65,
-            'Hyphen'     : 20,
+            'Hyphen'    : 20,
             'Equals'    : 21,
             'N'         : 57
            }

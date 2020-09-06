@@ -12,6 +12,10 @@ class BookmarksSearch(entriessearch.EntriesSearch):
         """Add bookmarks dir under selected dir"""
         self._add_folder()
 
+    def handle_key_Ctrl_Hyphen(self):
+        """Remove selected bookmark from bookmarks"""
+        self._remove_bookmark()
+
     def _add_folder(self):
         # Choose parent folder.
 
