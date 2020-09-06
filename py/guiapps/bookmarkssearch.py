@@ -37,5 +37,6 @@ class BookmarksSearch(entriessearch.EntriesSearch):
             self._switch_app("entries_search")
 
     def handle_entry_activation(self):
-        url = self._switcher_window._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_ID_STR)
+        url = self._switcher_window._entriestree.get_value_of_selected_row(entriestree.COL_NR_ENTRY_INFO_STR)
+        print("Opening bookmark: {}".format(url))
         webbrowser.open(url)
