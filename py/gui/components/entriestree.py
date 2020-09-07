@@ -54,6 +54,8 @@ class EntriesTree(object):
         self._windows = {}
         self._bookmarks = []
         self._pid_to_row_iter = {}
+        self._prev_map = None
+        self._next_map = None
         self.expanded_mode = True
         self._icon_cache = expiringdict.ExpiringDict(max_len=100, max_age_seconds=self.ONE_DAY_IN_SECONDS)
         self.tree = self._create_tree()
@@ -341,13 +343,20 @@ class EntriesTree(object):
             self.select_first_row()
             return
 
+        self._next_map = {}
+        self._prev_map = {}
+        prev_path = None
+
         # Populate DFS stack with tree roots
         dfs_stack = []
         model = self.treeview.get_model()
         row_iter = model.get_iter_first()
         while row_iter is not None:
-            dfs_stack.append(model[row_iter])
+            row = model[row_iter]
+            dfs_stack.append(row)
             row_iter = model.iter_next(row_iter)
+            path = row.path.to_string()
+        dfs_stack.reverse()
 
         if dfs_stack:
             max_score_row = None
@@ -358,15 +367,25 @@ class EntriesTree(object):
                 if uid in max_score_uids:
                     max_score_row = row
 
-                # Add children to scack
+                path = row.path.to_string()
+                if prev_path is not None:
+                    self._next_map[prev_path] = path
+                    self._prev_map[path] = prev_path
+                prev_path = path
+
+                # Add children to stack
+                children = []
                 child_iter = model.iter_children(row.iter)
                 while child_iter is not None:
                     row = model[child_iter]
-                    dfs_stack.append(row)
+                    children.append(row)
                     child_iter = model.iter_next(child_iter)
+                dfs_stack.extend(reversed(children))
 
-            if max_score_row is not None:
+            if max_score_row is not None and self._s:
                 self.treeview.set_cursor(max_score_row.path)
+            else:
+                self.select_first_row()
 
     def get_value_of_selected_row(self, col_nr):
         _filter, _iter = self.get_selected_row()

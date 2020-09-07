@@ -116,26 +116,11 @@ class EntryWindow(Gtk.Window):
             self._entriestree.treeview.set_cursor(nr_rows - 1)
 
     def select_next_item(self):
-        # Get iterator to selected
         model, _iter = self._entriestree.get_selected_row()
-        if _iter is None:
-            return
-
-        # Get next row
-        row = model[_iter]
-        if self._entriestree.expanded_mode:
-            try:
-                next_row = row.iterchildren().next()
-            except:
-                next_row = row.next
-        else:
-            next_row = row.next
-        while next_row is None and row is not None:
-            next_row = row.next
-            if next_row is None:
-                row = row.parent
-        if next_row is not None:
-            self._entriestree.treeview.set_cursor(next_row.path)
+        selected_row_path = model[_iter].path.to_string()
+        if selected_row_path in self._entriestree._next_map:
+            next_row_path = self._entriestree._next_map[selected_row_path]
+            self._entriestree.treeview.set_cursor(next_row_path)
 
     @staticmethod
     def _get_child_of_row(row):
@@ -147,30 +132,14 @@ class EntryWindow(Gtk.Window):
 
     def select_previous_item(self):
         model, _iter = self._entriestree.get_selected_row()
-        original = current = model[_iter]
-        while current.previous is None and current.parent != None:
-            current = current.parent
-        if original == current and current.previous is not None:
-            current = current.previous
-            child = self._get_child_of_row(current)
-            current_has_children = child is not None
-            if current_has_children:
-                current = child
-                while True:
-                    while current.next is not None:
-                        current = current.next
-                    child = self._get_child_of_row(current)
-                    current_has_children = child is not None
-                    if current_has_children:
-                        #current = current.child
-                        current = child
-                    else:
-                        break
-        self._entriestree.treeview.set_cursor(current.path)
+        selected_row_path = model[_iter].path.to_string()
+        if selected_row_path in self._entriestree._prev_map:
+            prev_row_path = self._entriestree._prev_map[selected_row_path]
+            self._entriestree.treeview.set_cursor(prev_row_path)
 
     def _treeview_keypress(self, *args):
         keycode = args[1].get_keycode()[1]
-        if keycode not in (keycodes.KEYCODES["ARROW_UP"], keycodes.KEYCODES["ARROW_DOWN"]):
+        if keycode not in (keycodes.KEYCODES["Arrow_up"], keycodes.KEYCODES["Arrow_down"]):
             self._search_textbox.element.grab_focus()
 
     def send_signal_to_selected_process(self, signal_type):
