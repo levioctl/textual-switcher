@@ -90,7 +90,18 @@ class BookmarksStore(object):
             parent['children'].append(folder)
 
         self._async_write()
-            
+
+    def rename(self, guid, new_name):
+        is_parent_folder_root_folder = guid == 'ROOT'
+
+        if is_parent_folder_root_folder:
+            raise ValueError(guid, "Cannot rename the root node")
+
+        entry = self.get_entry_by_guid(guid)
+
+        entry['name'] = new_name
+
+        self._async_write()
 
     def get_parent_of_entry(self, guid):
         """Get parent entry of the entry with the given GUID.

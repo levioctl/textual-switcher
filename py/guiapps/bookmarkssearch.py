@@ -15,6 +15,13 @@ class BookmarksSearch(defaultapp.DefaultApp):
         # Call switcher to add this as bookmark
         self._switch_app("type_bookmark_dirname_to_add", guid)
 
+    def handle_key_Ctrl_I(self):
+        """Rename selected entry"""
+        guid = self._get_selected_bookmark_dir_guid()
+
+        # Call switcher to add this as bookmark
+        self._switch_app("type_name_to_rename_bookmark_entry", guid)
+
     def handle_key_Ctrl_Hyphen(self):
         """Remove selected bookmark from bookmarks"""
         self._remove_bookmark()
