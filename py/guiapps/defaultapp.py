@@ -4,9 +4,16 @@ from gui import keycodes
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GdkX11, GLib
+from gui.components import entriestree
 
 
 class DefaultApp:
+    RECORD_TYPE_TO_APP = {entriestree.RECORD_TYPE_BOOKMARK_ENTRY: "bookmarks_search",
+                          entriestree.RECORD_TYPE_BOOKMARKS_DIR: "bookmarks_search",
+                          entriestree.RECORD_TYPE_WINDOW: "windows_search",
+                          entriestree.RECORD_TYPE_BROWSER_TAB: "tabs_search"
+    }
+
     def __init__(self, entries_datamodel, switcher_window, switch_app_func):
         self._entries_model = entries_datamodel
         self._switcher_window = switcher_window
@@ -44,19 +51,40 @@ class DefaultApp:
         pass
 
     def handle_entry_selection(self):
-        pass
+        # Use has move selection to a new row Switch the active app according to the row type
+        record_type = self._switcher_window._entriestree.get_value_of_selected_row(entriestree.COL_NR_RECORD_TYPE)
+        app_name = self.RECORD_TYPE_TO_APP[record_type]
+        self._switch_app(app_name)
 
     def _async_refresh_entries(self):
         self._entries_model.async_list_entries()
         self._switcher_window._status_label.set_text("Bookmarks: Reading from drive...")
 
     def _toggle_help_text(self):
+        # Prepare a list of available methods to display (only those with docstring)
         methods = [method_name for method_name in dir(self) if 
-                   method_name.startswith("handle_key_")]
-        full_help_text = "\n".join("{}: {}".format(method_name[len("handle_key") + 1:].replace("Backslash", "\\"),
-                                                   getattr(self, method_name).__doc__)
-                                   for method_name in methods
-                                   if getattr(self, method_name).__doc__ is not None)
+                   method_name.startswith("handle_key_") and getattr(self, method_name).__doc__]
+
+        print(methods)
+
+        # Put the default methods first, and the specialized (app-specific) methods later
+        default_methods = [method_name for method_name in methods if hasattr(DefaultApp, method_name)]
+        specialized_methods = [method for method in methods if method not in default_methods]
+
+        def get_method_help_text(method_name):
+            return "{}: {}".format(method_name[len("handle_key") + 1:]
+                                   .replace("Backslash", "\\")
+                                   .replace("Ctrl_", "Ctrl-"),
+                                   getattr(self, method_name).__doc__)
+
+        full_help_text = ""
+        full_help_text += "\nDefault bindings:\n\n"
+        full_help_text += "\t" + "\n\t".join(get_method_help_text(method_name) for method_name in default_methods)
+        full_help_text += "\n\n"
+        full_help_text += "Binding for selected row type:\n\n"
+        full_help_text += "\t" + "\n\t".join(get_method_help_text(method_name) for method_name in specialized_methods)
+
+        # Display help text
         self._switcher_window.toggle_help_text(full_help_text)
 
     def handle_key_Down(self):
@@ -92,14 +120,6 @@ class DefaultApp:
     def handle_key_Ctrl_W(self):
         """Empty search box"""
         self._switcher_window.empty_search_textbox()
-
-    def handle_key_Ctrl_Backspace(self):
-        """SIGTERM selected process"""
-        self._term_selected_process()
-
-    def handle_key_Ctrl_Backslash(self):
-        """SIGKILL selected process"""
-        self._kill_selected_process()
 
     def handle_key_Ctrl_H(self):
         """Toggle Help text"""

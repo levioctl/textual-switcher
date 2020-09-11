@@ -9,7 +9,7 @@ from gi.repository import Gtk
 from utils import pidfile
 from gui.components import entrieswindow
 from datamodel import entries
-from guiapps import entriessearch, chooseparentbookmarksdir, bookmarkssearch
+from guiapps import entriessearch, chooseparentbookmarksdir, bookmarkssearch, tabssearch
 
 
 class EntriesWindowController(entrieswindow.EntryWindow):
@@ -18,11 +18,12 @@ class EntriesWindowController(entrieswindow.EntryWindow):
         self._entries_view = entries_window
 
         # Keyboard modes modes for the same window
-        self._gui_apps = {'entries_search': entriessearch.EntriesSearch(self._entries_model, self._entries_view, self._switch_app),
+        self._gui_apps = {'windows_search': entriessearch.EntriesSearch(self._entries_model, self._entries_view, self._switch_app),
                           'bookmarks_search': bookmarkssearch.BookmarksSearch(self._entries_model, self._entries_view, self._switch_app),
-                          'choose_parent_bookmarks_dir_app': chooseparentbookmarksdir.ChooseParentBookmarksDir(self._entries_model, self._entries_view, self._switch_app)
+                          'choose_parent_bookmarks_dir_app': chooseparentbookmarksdir.ChooseParentBookmarksDir(self._entries_model, self._entries_view, self._switch_app),
+                          "tabs_search": tabssearch.TabsSearch(self._entries_model, self._entries_view, self._switch_app)
         }
-        self._current_app = self._gui_apps['entries_search']
+        self._current_app = self._gui_apps['windows_search']
 
     def run(self):
         # Bind callbacks of GUI to updates from the data model
@@ -46,8 +47,11 @@ class EntriesWindowController(entrieswindow.EntryWindow):
         self._entries_view.run()
 
     def _switch_app(self, app_name, *args, **kwargs):
-        self._current_app = self._gui_apps[app_name]
-        self._current_app.switch(*args, **kwargs)
+        # Switch if we're not already on the needed app
+        new_app_candidate = self._gui_apps[app_name]
+        if self._current_app != new_app_candidate:
+            self._current_app = self._gui_apps[app_name]
+            self._current_app.switch(*args, **kwargs)
 
     def _handle_entry_activation(self):
         self._current_app.handle_entry_activation()
