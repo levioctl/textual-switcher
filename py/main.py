@@ -9,7 +9,7 @@ from gi.repository import Gtk
 from utils import pidfile
 from gui.components import entrieswindow
 from datamodel import entries
-from guiapps import entriessearch, chooseparentbookmarksdir, bookmarkssearch, tabssearch
+from guiapps import entriessearch, chooseparentbookmarksdir, bookmarkssearch, tabssearch, typebookmarkdirnametoadd
 
 
 class EntriesWindowController(entrieswindow.EntryWindow):
@@ -18,11 +18,18 @@ class EntriesWindowController(entrieswindow.EntryWindow):
         self._entries_view = entries_window
 
         # Keyboard modes modes for the same window
-        self._gui_apps = {'windows_search': entriessearch.EntriesSearch(self._entries_model, self._entries_view, self._switch_app),
-                          'bookmarks_search': bookmarkssearch.BookmarksSearch(self._entries_model, self._entries_view, self._switch_app),
-                          'choose_parent_bookmarks_dir_app': chooseparentbookmarksdir.ChooseParentBookmarksDir(self._entries_model, self._entries_view, self._switch_app),
-                          "tabs_search": tabssearch.TabsSearch(self._entries_model, self._entries_view, self._switch_app)
+        self._gui_apps = {'windows_search': entriessearch.EntriesSearch,
+                          'bookmarks_search': bookmarkssearch.BookmarksSearch,
+                          'choose_parent_bookmarks_dir_app': chooseparentbookmarksdir.ChooseParentBookmarksDir,
+                          "tabs_search": tabssearch.TabsSearch,
+                          "type_bookmark_dirname_to_add": typebookmarkdirnametoadd.TypeBookmarkDirnameToAdd
         }
+        # Transform dict values (classes) to objects
+        gui_apps_copy = dict(self._gui_apps)
+        for gui_app_name, gui_app_class in self._gui_apps.iteritems():
+            self._gui_apps[gui_app_name] = gui_app_class(self._entries_model, self._entries_view, self._switch_app)
+
+        # Set startup app
         self._current_app = self._gui_apps['windows_search']
 
     def run(self):

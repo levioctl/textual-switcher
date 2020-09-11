@@ -72,11 +72,11 @@ class BookmarksStore(object):
 
         self._async_write()
 
-    def add_folder(self, parent_folder_guid):
+    def add_folder(self, parent_folder_guid, folder_name):
         is_parent_folder_root_folder = parent_folder_guid == 'ROOT'
 
         # Generate folder
-        folder = {'name': 'blabla', 'guid': uuid.uuid4().hex}
+        folder = {'name': folder_name, 'guid': uuid.uuid4().hex}
 
         if is_parent_folder_root_folder:
             self._bookmarks.append(folder)

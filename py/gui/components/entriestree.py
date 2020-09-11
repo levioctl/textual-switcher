@@ -95,10 +95,10 @@ class EntriesTree(object):
         _, _iter = self.treeview.get_selection().get_selected()
         model = self.treeview.get_model()
         if model is None:
-            self.select_first_row()
+            print("Cannot do anything, as selected model is None")
             return
         if _iter is None:
-            self.select_first_row()
+            print("Cannot do anything, as selected row iter is None")
             return
         row = model[_iter]
 
