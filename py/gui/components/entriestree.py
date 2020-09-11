@@ -188,11 +188,12 @@ class EntriesTree(object):
 
     def _add_windows_and_tabs_to_tree(self):
         # Add windows to treeview
-        for window_xid in sorted(self._windows):
+        for window_xid in reversed(sorted(self._windows)):
             window = self._windows[window_xid]
             window_row_label = window.get_label()
             row = [RECORD_TYPE_WINDOW, window.icon, window.get_label(), window.get_xid(), 0, "", ""]
-            row_iter = self.tree.append(None, row)
+            # Prepend to make sure windows are at the top of the list
+            row_iter = self.tree.prepend(None, row)
 
             if window.is_browser():
                 self._pid_to_row_iter[window.get_pid()] = row_iter
