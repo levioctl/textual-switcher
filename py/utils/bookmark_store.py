@@ -140,6 +140,34 @@ class BookmarksStore(object):
         # Write
         self._async_write()
 
+    def move_children_of_entry(self, guid, dest_parent_guid):
+        # Validate not moving root
+        is_trying_to_move_root = guid == 'ROOT'
+        if is_trying_to_move_root:
+            raise ValueError(guid, "Cannot move all children of root dir")
+
+        entry = self.get_entry_by_guid(guid)
+        
+        # Find entries
+        dest_parent = self.get_entry_by_guid(dest_parent_guid)
+        # Fix entry if it has no 'children' key
+        if 'children' not in dest_parent and 'url' not in dest_parent:
+            dest_parent['children'] = []
+
+        # Validate dest is not under src
+        if self.is_node_a_under_node_b(dest_parent, entry):
+            raise ValueError("Cannot move an entry to one if its children")
+
+        # Remove children entry
+        children = entry['children']
+        entry['children'] = []
+
+        # Add to parent
+        dest_parent['children'].extend(children)
+
+        # Write
+        self._async_write()
+
     def import_from_firefox(self):
         bookmarks_filename = self._find_latest_bookmarks_filename()
         if bookmarks_filename is None:

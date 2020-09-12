@@ -10,7 +10,8 @@ from utils import pidfile
 from gui.components import entrieswindow
 from datamodel import entries
 from guiapps import (entriessearch, chooseparentbookmarksdir, bookmarkssearch, tabssearch,
-                     typebookmarkdirnametoadd, typenametorenamebookmarkentry, chooseparentdirtomoveto)
+                     typebookmarkdirnametoadd, typenametorenamebookmarkentry, chooseparentdirtomoveto,
+                     chooseparentdirtomovechildrento)
 
 
 class EntriesWindowController(entrieswindow.EntryWindow):
@@ -25,7 +26,8 @@ class EntriesWindowController(entrieswindow.EntryWindow):
                           "tabs_search": tabssearch.TabsSearch,
                           "type_bookmark_dirname_to_add": typebookmarkdirnametoadd.TypeBookmarkDirnameToAdd,
                           "type_name_to_rename_bookmark_entry": typenametorenamebookmarkentry.TypeNameToRenameBookmarkEntry,
-                          "choose_parent_bookmark_dir_to_move_to": chooseparentdirtomoveto.ChooseParentDirToMoveTo
+                          "choose_parent_bookmark_dir_to_move_to": chooseparentdirtomoveto.ChooseParentDirToMoveTo,
+                          "choose_parent_bookmark_dir_to_children_move_to": chooseparentdirtomovechildrento.ChooseParentDirToMoveChildrenTo
         }
         # Transform dict values (classes) to objects
         gui_apps_copy = dict(self._gui_apps)

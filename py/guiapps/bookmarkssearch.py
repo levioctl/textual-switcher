@@ -22,6 +22,13 @@ class BookmarksSearch(defaultapp.DefaultApp):
         # Call switcher to add this as bookmark
         self._switch_app("choose_parent_bookmark_dir_to_move_to", guid)
 
+    def handle_key_Ctrl_Shift_X(self):
+        """Move children of selected entry to another parent"""
+        guid = self._get_selected_bookmark_dir_guid()
+
+        # Call switcher to add this as bookmark
+        self._switch_app("choose_parent_bookmark_dir_to_children_move_to", guid)
+
     def handle_key_Ctrl_Shift_Two(self):
         """Remove selected entry (and its children) from bookmarks"""
         self._remove_bookmark(recursive=True)
