@@ -47,65 +47,52 @@ class BookmarksStore(object):
         if self._bookmarks is None:
             raise NotConnectedToCloudStorage()
 
-        if parent_dir_entry_guid == 'ROOT':
-            parent = self._bookmarks
-        else:
-            parent = self.get_entry_by_guid(parent_dir_entry_guid)
-            if 'children' not in parent:
-                if 'url' in parent:
-                    raise ValueError("Cannot add child bookmark to non-folder bookmark", parent_dir_entry_guid)
-                else:
-                    # Fix entry
-                    parent['children'] = []
-            parent = parent['children']
+        # Find parent node
+        parent = self.get_entry_by_guid(parent_dir_entry_guid)
+        if 'children' not in parent:
+            if 'url' in parent:
+                raise ValueError("Cannot add child bookmark to non-folder bookmark", parent_dir_entry_guid)
+            else:
+                # Fix entry
+                parent['children'] = []
 
-        if parent is not None:
-            parent.append({'url': url, 'name': title, 'guid': uuid.uuid4().hex})
-            # Write the local file (TODO do this asynchronously)
-            self._async_write()
+        parent['children'].append({'url': url, 'name': title, 'guid': uuid.uuid4().hex})
+        # Write the local file (TODO do this asynchronously)
+        self._async_write()
 
     def remove(self, bookmark_id, recursive=False):
-        if not self._bookmarks:
-            raise RuntimeError("Cannot remove bookmark, inner bookmarks collection is empty")
+        # Validate connection to cloud storage
+        if self._bookmarks is None:
+            raise NotConnectedToCloudStorage()
 
         item = self.get_entry_by_guid(bookmark_id)
         parent = self.get_parent_of_entry(bookmark_id)
-        if parent == 'ROOT':
-            self._bookmarks.remove(item)
-        elif item is None:
-            raise ValueError("Did not find a bookmark with GUID: {}".format(bookmark_id))
+        is_parent = 'children' in item and item['children']
+        if is_parent and not recursive:
+            raise ValueError("Cannot remove an entry with children")
         else:
-            is_parent = 'children' in item and item['children']
-            if is_parent and not recursive:
-                raise ValueError("Cannot remove an entry with children")
-            else:
-                parent['children'].remove(item)
+            parent['children'].remove(item)
 
         self._async_write()
 
     def add_folder(self, parent_folder_guid, folder_name):
-        is_parent_folder_root_folder = parent_folder_guid == 'ROOT'
-
         # Generate folder
         folder = {'name': folder_name, 'guid': uuid.uuid4().hex}
 
-        if is_parent_folder_root_folder:
-            self._bookmarks.append(folder)
-        else:
-            parent = self.get_entry_by_guid(parent_folder_guid)
+        # Find parent
+        parent = self.get_entry_by_guid(parent_folder_guid)
 
-            # Fix entry if no 'children' key
-            if 'url' not in parent and 'children' not in 'parent':
-                parent['children'] = []
+        # Fix entry if no 'children' key
+        if 'url' not in parent and 'children' not in 'parent':
+            parent['children'] = []
 
-            parent['children'].append(folder)
+        parent['children'].append(folder)
 
         self._async_write()
 
     def rename(self, guid, new_name):
-        is_parent_folder_root_folder = guid == 'ROOT'
-
-        if is_parent_folder_root_folder:
+        is_root = guid == 'ROOT'
+        if is_root:
             raise ValueError(guid, "Cannot rename the root node")
 
         entry = self.get_entry_by_guid(guid)
@@ -254,9 +241,11 @@ class BookmarksStore(object):
         return latest_updated_bookmarks_file
 
     def _get_entry_and_parent_by_entry_guid(self, guid):
+        if self._bookmarks is None:
+            raise RuntimeError("Bookmarks were not read yet")
+
         # Find parent dir of bookmark
-        root = {'guid': "ROOT", 'children': self._bookmarks}
-        dfs_stack = [(root, None)]
+        dfs_stack = [(self._bookmarks[0], None)]
         parent_dir = None
         item = None
         while dfs_stack:
@@ -268,6 +257,8 @@ class BookmarksStore(object):
                 for child in item['children']:
                     dfs_stack.append((child, item))
 
+        if item is None:
+            raise ValueError("Did not find a bookmark with GUID: {}".format(bookmark_id))
         assert item in parent_dir["children"]
 
         return item, parent_dir
@@ -282,7 +273,7 @@ class BookmarksStore(object):
         if was_fix_needed:
             self._async_write()
         else:
-            self._list_bookmarks_main_glib_loop_callback(self._bookmarks, is_connected=True)
+            self._invoke_external_bookmark_update_callback(is_connected=True)
 
     def _fix_bookmarks(self):
         was_fix_needed = False
@@ -312,24 +303,29 @@ class BookmarksStore(object):
     def _get_local_cache_callback(self, bookmarks_yaml_cache):
         if self._bookmarks is None:
             self._update_local_copy(bookmarks_yaml_cache)
-            self._list_bookmarks_main_glib_loop_callback(self._bookmarks, is_connected=False)
+            self._invoke_external_bookmark_update_callback(is_connected=False)
         else:
             print("Bookmarks read from local cache, but local cache is not empty.")
 
     def _update_local_copy(self, encoded_yaml):
+        self._bookmarks = [{'guid': 'ROOT', 'children': []}]
         try:
-            self._bookmarks = yaml.load(encoded_yaml)
+            self._bookmarks[0]['children'].extend(yaml.load(encoded_yaml)['children'])
         except:
             print("Could not read local cache YAML file: {}".format(traceback.format_exc()))
-        if self._bookmarks is None:
-            self._bookmarks = []
 
     def _async_write(self):
-        contents = yaml.dump(self._bookmarks, encoding='utf-8', allow_unicode=True)
+        assert self._bookmarks is not None
+        assert len(self._bookmarks) == 1
+        contents = yaml.dump(self._bookmarks[0], encoding='utf-8', allow_unicode=True)
         # Write the file to cloud
         self._cloudfilesynchronizerthread.async_write(contents)
 
     def _write_callback(self):
         print("Bookmarks written to cloud")
         # Wrote to cloud once. Invoking callback to update bookmarks
-        self._list_bookmarks_main_glib_loop_callback(self._bookmarks, is_connected=True)
+        self._invoke_external_bookmark_update_callback(is_connected=True)
+
+    def _invoke_external_bookmark_update_callback(self, is_connected):
+        bookmarks = self._bookmarks
+        self._list_bookmarks_main_glib_loop_callback(bookmarks[0]['children'], is_connected=is_connected)
