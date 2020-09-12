@@ -101,6 +101,17 @@ class BookmarksStore(object):
 
         self._async_write()
 
+    def is_node_a_under_node_b(self, node_a, node_b):
+        current_node = node_a
+        while True:
+            if current_node['guid'] == node_b['guid']:
+                return True
+            if current_node['guid'] == 'ROOT':
+                break
+
+            current_node = self.get_parent_of_entry(current_node['guid'])
+        return node_a['guid'] == node_b['guid']
+
     def move_entry(self, guid, dest_parent_guid):
         # Validate not moving root
         is_trying_to_move_root = guid == 'ROOT'
@@ -108,27 +119,23 @@ class BookmarksStore(object):
             raise ValueError(guid, "Cannot move the root dir")
 
         entry = self.get_entry_by_guid(guid)
+        
+        # Find entries
+        dest_parent = self.get_entry_by_guid(dest_parent_guid)
+        # Fix entry if it has no 'children' key
+        if 'children' not in dest_parent and 'url' not in dest_parent:
+            dest_parent['children'] = []
+
+        # Validate dest is not under src
+        if self.is_node_a_under_node_b(dest_parent, entry):
+            raise ValueError("Cannot move an entry to one if its children")
 
         # Remove from current parent
         parent = self.get_parent_of_entry(guid)
-        if parent['guid'] == 'ROOT':
-            children_list = self._bookmarks
-        else:
-            children_list = parent['children']
-        children_list.remove(entry)
-        
-        # Find parent
-        dest_parent = self.get_entry_by_guid(dest_parent_guid)
-        if dest_parent == 'ROOT':
-            children_list = self._bookmarks
-        else:
-            # Fix entry if it has no 'children' key
-            if 'children' not in dest_parent:
-                dest_parent['children'] = []
-            children_list = dest_parent['children']
+        parent['children'].remove(entry)
 
         # Add to parent
-        children_list.append(entry)
+        dest_parent['children'].append(entry)
 
         # Write
         self._async_write()

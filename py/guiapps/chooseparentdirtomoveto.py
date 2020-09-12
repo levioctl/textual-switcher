@@ -8,6 +8,7 @@ class ChooseParentDirToMoveTo(defaultapp.DefaultApp):
         self._entry_guid = None
 
     def handle_entry_activation(self):
+        print('activated')
         dest_parent_guid = self._get_selected_bookmark_dir_guid()
         self._entries_model._bookmark_store.move_entry(self._entry_guid, dest_parent_guid)
         self._switch_app("bookmarks_search")
@@ -28,9 +29,10 @@ class ChooseParentDirToMoveTo(defaultapp.DefaultApp):
 
     def switch(self, guid):
         self._entry_guid = guid
-        self._switcher_window._status_label.set_text("Choose a new parent bookmark dir")
+        self._switcher_window._status_label.set_text("Choose a new parent bookmark dir.")
 
     def handle_entry_selection(self):
+        print('selected')
         # Don't switch apps when selecting different entries, as we want to stay on this app, until the
         # user presses Enter (which is handled by handle_entry_activation).
         pass
