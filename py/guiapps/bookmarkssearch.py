@@ -22,6 +22,10 @@ class BookmarksSearch(defaultapp.DefaultApp):
         # Call switcher to add this as bookmark
         self._switch_app("choose_parent_bookmark_dir_to_move_to", guid)
 
+    def handle_key_Ctrl_Shift_Two(self):
+        """Remove selected entry (and its children) from bookmarks"""
+        self._remove_bookmark(recursive=True)
+
     def handle_key_Ctrl_I(self):
         """Rename selected entry"""
         guid = self._get_selected_bookmark_dir_guid()
@@ -30,8 +34,12 @@ class BookmarksSearch(defaultapp.DefaultApp):
         self._switch_app("type_name_to_rename_bookmark_entry", guid)
 
     def handle_key_Ctrl_Hyphen(self):
-        """Remove selected bookmark from bookmarks"""
+        """Remove selected entry from bookmarks"""
         self._remove_bookmark()
+
+    def handle_key_Ctrl_Shift_Four(self):
+        """Import bookmarks from Google Chrome"""
+        self._entries_model._bookmark_store.import_from_chrome()
 
     def _get_selected_bookmark_dir_guid(self):
         # If selected entry is a URL, parent folder will be parent of selected entry.
@@ -53,7 +61,7 @@ class BookmarksSearch(defaultapp.DefaultApp):
         print("Opening bookmark: {}".format(url))
         webbrowser.open(url)
 
-    def _remove_bookmark(self):
+    def _remove_bookmark(self, recursive=False):
         record_type = self._switcher_window._entriestree.get_value_of_selected_row(entriestree.COL_NR_RECORD_TYPE)
         # Validate selection is a bookmark/dir entry
         if record_type not in (entriestree.RECORD_TYPE_BOOKMARK_ENTRY, entriestree.RECORD_TYPE_BOOKMARKS_DIR):
@@ -69,6 +77,6 @@ class BookmarksSearch(defaultapp.DefaultApp):
 
         # Try remove bookmark
         try:
-            self._entries_model._bookmark_store.remove(bookmark_id)
+            self._entries_model._bookmark_store.remove(bookmark_id, recursive=recursive)
         except ValueError as ex:
             self._switcher_window._status_label.set_text(ex.message)

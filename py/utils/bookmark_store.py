@@ -1,8 +1,13 @@
+import json
 import uuid
 import os.path
 import yaml
 import traceback
 from utils.drive import cloudfilesynchronizerthread
+
+
+
+CHROME_BOOKMARKS_PATH = os.path.expanduser(r"~/.config/google-chrome/Default/Bookmarks")
 
 
 class NotConnectedToCloudStorage(Exception): pass
@@ -53,7 +58,7 @@ class BookmarksStore(object):
             # Write the local file (TODO do this asynchronously)
             self._async_write()
 
-    def remove(self, bookmark_id):
+    def remove(self, bookmark_id, recursive=False):
         if not self._bookmarks:
             raise RuntimeError("Cannot remove bookmark, inner bookmarks collection is empty")
 
@@ -65,7 +70,7 @@ class BookmarksStore(object):
             raise ValueError("Did not find a bookmark with GUID: {}".format(bookmark_id))
         else:
             is_parent = 'children' in item and item['children']
-            if is_parent:
+            if is_parent and not recursive:
                 raise ValueError("Cannot remove an entry with children")
             else:
                 parent['children'].remove(item)
@@ -133,6 +138,59 @@ class BookmarksStore(object):
         children_list.append(entry)
 
         # Write
+        self._async_write()
+
+    def import_from_chrome(self):
+        with open(CHROME_BOOKMARKS_PATH) as chrome_bookmarks:
+            chrome_bookmarks = json.load(chrome_bookmarks)['roots']
+
+        def convert_chrome_entry_to_local_entry(entry):
+            local_entry = dict(chrome_entry)
+            guid = chrome_entry['guid']
+            for key in ['date_modified', 'date_added', 'type', 'id']:
+                if key in local_entry:
+                    del local_entry[key]
+
+            local_entry['children'] = []
+            local_entry['guid'] = guid
+
+            return local_entry
+
+        # Populate DFS stack with roots of chrome bookmarks tree
+        dfs_stack = []
+        roots = [chrome_bookmarks[root_name] for root_name in ['synced', 'bookmark_bar', 'other']
+                 if root_name in chrome_bookmarks if 'children' in chrome_bookmarks[root_name]]
+        for root in roots:
+            dfs_stack.append((root, None))
+            
+        while dfs_stack:
+            chrome_entry, parent_local_entry = dfs_stack.pop()
+
+            # Find parent to contain bookmark
+            if parent_local_entry is None:
+                children_of_parent = self._bookmarks
+            else:
+                children_of_parent = parent_local_entry['children']
+
+            # Convert chrome entry to local entry
+            children = None
+            if 'children' in chrome_entry:
+                children = chrome_entry['children']
+            local_entry = convert_chrome_entry_to_local_entry(chrome_entry)
+
+            # Add entry if it does not exist already
+            already_exists = local_entry['guid'] in [entry['guid'] for entry in children_of_parent]
+            if already_exists:
+                print("bookmark already exists")
+            else:
+                children_of_parent.append(local_entry)
+
+            # Popluate DFS stack wich node's children
+            if children is not None:
+                # Add child and parent
+                children = [(child, local_entry) for child in children]
+                dfs_stack.extend(children)
+
         self._async_write()
 
     def get_parent_of_entry(self, guid):

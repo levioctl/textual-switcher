@@ -1,6 +1,8 @@
 KEYCODES = {'Escape'    : 9,
             'Arrow_down': 116,
             'Arrow_up'  : 111,
+            'Two'       : 11,
+            'Four'      : 13,
             'A'         : 38,
             'C'         : 54,
             'D'         : 40,
