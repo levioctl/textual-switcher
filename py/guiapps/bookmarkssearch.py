@@ -41,6 +41,10 @@ class BookmarksSearch(defaultapp.DefaultApp):
         """Import bookmarks from Google Chrome"""
         self._entries_model._bookmark_store.import_from_chrome()
 
+    def handle_key_Ctrl_Shift_Five(self):
+        """Import bookmarks from Mozilla Firefox"""
+        self._entries_model._bookmark_store.import_from_firefox()
+
     def _get_selected_bookmark_dir_guid(self):
         # If selected entry is a URL, parent folder will be parent of selected entry.
         record_type = self._switcher_window._entriestree.get_value_of_selected_row(entriestree.COL_NR_RECORD_TYPE)

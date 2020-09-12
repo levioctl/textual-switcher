@@ -5,13 +5,13 @@ KEY_BINDING="${INSTALL_DIR}/launch"
 CHROME_EXTENSION_ID=ebgonmbbfgmoiklncphoekdfkfeaenee
 
 .PHONY: install
-install: launch
+install: launch dejsonlz4
 	@echo 'Installing requirements... (see log in "requirements.log")'.
 	@$(MAKE) requirements >> requirements.log 2>&1
 	@echo 'Installing switcher... (see log in installation.log)'
 	@sudo mkdir -p ~/.config/textual-switcher >> installation.log 2>&1
 	@sudo mkdir -p ${INSTALL_DIR} >> installation.log 2>&1
-	@sudo cp -r py/* launch browser-agent/api_proxy_native_app.py ${INSTALL_DIR} >> installation.log 2>&1
+	@sudo cp -r py/* launch dejsonlz4 browser-agent/api_proxy_native_app.py ${INSTALL_DIR} >> installation.log 2>&1
 	@echo Creating PID file... >> installation.log 2>&1
 	@touch ${LOCKFILE_PATH}
 	@echo Setting the keyboard shortcut... >> installation.log 2>&1
@@ -29,6 +29,9 @@ install: launch
 launch: launch.c
 	@echo 'Building... (see log in "build.log")'.
 	@gcc -Wall -Werror -pedantic -std=c99 launch.c -o launch >> build.log 2>&1
+
+dejsonlz4:
+	./build-dejsonlz4.sh
 
 .PHONY: requirements
 requirements:

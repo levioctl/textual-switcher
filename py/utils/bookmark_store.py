@@ -1,4 +1,5 @@
 import json
+import subprocess
 import uuid
 import os.path
 import yaml
@@ -8,14 +9,19 @@ from utils.drive import cloudfilesynchronizerthread
 
 
 CHROME_BOOKMARKS_PATH = os.path.expanduser(r"~/.config/google-chrome/Default/Bookmarks")
+FIREFOX_CONFIG_PATH = os.path.expanduser(r"~/.mozilla/firefox/")
 
 
 class NotConnectedToCloudStorage(Exception): pass
 
 
+ALLOWED_ENTRY_KEYS = ['guid', 'name', 'children']
+
+
 class BookmarksStore(object):
     (STATE_IDLE,
      STATE_WAITING_FOR_RESPONSE) = range(2)
+
     def __init__(self,
                  list_bookmarks_main_glib_loop_callback,
                  connected_to_cloud_callback,
@@ -140,15 +146,42 @@ class BookmarksStore(object):
         # Write
         self._async_write()
 
+    def import_from_firefox(self):
+        bookmarks_filename = self._find_latest_bookmarks_filename()
+        if bookmarks_filename is None:
+            raise RuntimeError("Did not find firefox bookmarks file")
+        cmd = ["/usr/share/textual-switcher/dejsonlz4", bookmarks_filename]
+        bookmarks_json = subprocess.check_output(cmd)
+        firefox_bookmarks = json.loads(bookmarks_json)
+        firefox_bookmarks = firefox_bookmarks.get('children', [])
+
+        def convert_chrome_entry_to_local_entry(firefox_entry):
+            local_entry = dict(firefox_entry)
+            guid = firefox_entry['guid']
+            name = firefox_entry['title']
+            for key in local_entry.keys():
+                if key not in ALLOWED_ENTRY_KEYS:
+                    del local_entry[key]
+
+            local_entry['children'] = []
+            local_entry['guid'] = guid
+            local_entry['name'] = name
+
+            return local_entry
+
+        self._import_bookmarks(firefox_bookmarks, convert_chrome_entry_to_local_entry)
+
     def import_from_chrome(self):
         with open(CHROME_BOOKMARKS_PATH) as chrome_bookmarks:
             chrome_bookmarks = json.load(chrome_bookmarks)['roots']
+        chrome_bookmarks = [chrome_bookmarks[root_name] for root_name in ['synced', 'bookmark_bar', 'other']
+                            if root_name in chrome_bookmarks if 'children' in bookmarks[root_name]]
 
-        def convert_chrome_entry_to_local_entry(entry):
+        def convert_chrome_entry_to_local_entry(chrome_entry):
             local_entry = dict(chrome_entry)
             guid = chrome_entry['guid']
-            for key in ['date_modified', 'date_added', 'type', 'id']:
-                if key in local_entry:
+            for key in local_entry.keys():
+                if key not in ALLOWED_ENTRY_KEYS:
                     del local_entry[key]
 
             local_entry['children'] = []
@@ -156,13 +189,12 @@ class BookmarksStore(object):
 
             return local_entry
 
+        self._import_bookmarks(chrome_bookmarks, convert_callback)
+
+    def _import_bookmarks(self, bookmarks, convert_bookmark_to_local_bookmark):
         # Populate DFS stack with roots of chrome bookmarks tree
-        dfs_stack = []
-        roots = [chrome_bookmarks[root_name] for root_name in ['synced', 'bookmark_bar', 'other']
-                 if root_name in chrome_bookmarks if 'children' in chrome_bookmarks[root_name]]
-        for root in roots:
-            dfs_stack.append((root, None))
-            
+        dfs_stack = [(root, None) for root in bookmarks]
+
         while dfs_stack:
             chrome_entry, parent_local_entry = dfs_stack.pop()
 
@@ -176,7 +208,7 @@ class BookmarksStore(object):
             children = None
             if 'children' in chrome_entry:
                 children = chrome_entry['children']
-            local_entry = convert_chrome_entry_to_local_entry(chrome_entry)
+            local_entry = convert_bookmark_to_local_bookmark(chrome_entry)
 
             # Add entry if it does not exist already
             already_exists = local_entry['guid'] in [entry['guid'] for entry in children_of_parent]
@@ -205,6 +237,21 @@ class BookmarksStore(object):
     def get_entry_by_guid(self, guid):
         item, _ = self._get_entry_and_parent_by_entry_guid(guid)
         return item
+
+    def _find_latest_bookmarks_filename(self):
+        latest_updated_bookmarks_file = None
+
+        # Find all bookmarks filenames
+        bookmarks_files = []
+        for root, dirs, files in os.walk(FIREFOX_CONFIG_PATH):
+            bookmarks_files.extend([os.path.join(root, basename) for basename in files if
+                                    basename.startswith("bookmarks-") and basename.endswith(".jsonlz4")])
+
+        # Find latest modified bookmark file
+        if bookmarks_files:
+            latest_updated_bookmarks_file = max(bookmarks_files, key=os.path.getmtime)
+
+        return latest_updated_bookmarks_file
 
     def _get_entry_and_parent_by_entry_guid(self, guid):
         # Find parent dir of bookmark
