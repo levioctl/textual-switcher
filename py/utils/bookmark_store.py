@@ -103,20 +103,52 @@ class BookmarksStore(object):
 
         self._async_write()
 
+    def move_entry(self, guid, dest_parent_guid):
+        # Validate not moving root
+        is_trying_to_move_root = guid == 'ROOT'
+        if is_trying_to_move_root:
+            raise ValueError(guid, "Cannot move the root dir")
+
+        entry = self.get_entry_by_guid(guid)
+
+        # Remove from current parent
+        parent = self.get_parent_of_entry(guid)
+        if parent['guid'] == 'ROOT':
+            children_list = self._bookmarks
+        else:
+            children_list = parent['children']
+        children_list.remove(entry)
+        
+        # Find parent
+        dest_parent = self.get_entry_by_guid(dest_parent_guid)
+        if dest_parent == 'ROOT':
+            children_list = self._bookmarks
+        else:
+            # Fix entry if it has no 'children' key
+            if 'children' not in dest_parent:
+                dest_parent['children'] = []
+            children_list = dest_parent['children']
+
+        # Add to parent
+        children_list.append(entry)
+
+        # Write
+        self._async_write()
+
     def get_parent_of_entry(self, guid):
         """Get parent entry of the entry with the given GUID.
 
         If parent is root, return 'ROOT'.
         If GUID does not exist, return None.
         """
-        _, parent = self._get_entry_by_guid(guid)
+        _, parent = self._get_entry_and_parent_by_entry_guid(guid)
         return parent
 
     def get_entry_by_guid(self, guid):
-        item, _ = self._get_entry_by_guid(guid)
+        item, _ = self._get_entry_and_parent_by_entry_guid(guid)
         return item
 
-    def _get_entry_by_guid(self, guid):
+    def _get_entry_and_parent_by_entry_guid(self, guid):
         # Find parent dir of bookmark
         root = {'guid': "ROOT", 'children': self._bookmarks}
         dfs_stack = [(root, None)]

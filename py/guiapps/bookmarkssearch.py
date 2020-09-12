@@ -15,6 +15,13 @@ class BookmarksSearch(defaultapp.DefaultApp):
         # Call switcher to add this as bookmark
         self._switch_app("type_bookmark_dirname_to_add", guid)
 
+    def handle_key_Ctrl_Shift_M(self):
+        """Move selected entry to another parent entry"""
+        guid = self._get_selected_bookmark_dir_guid()
+
+        # Call switcher to add this as bookmark
+        self._switch_app("choose_parent_bookmark_dir_to_move_to", guid)
+
     def handle_key_Ctrl_I(self):
         """Rename selected entry"""
         guid = self._get_selected_bookmark_dir_guid()
