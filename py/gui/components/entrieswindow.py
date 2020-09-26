@@ -95,7 +95,7 @@ class EntryWindow(Gtk.Window):
 
     def _create_status_label(self):
         label = Gtk.Label()
-        label.set_text("Bookmarks: Connecting to drive")
+        label.set_text("Drive: synced")
         label.set_justify(Gtk.Justification.LEFT)
         return label
 
@@ -164,9 +164,9 @@ class EntryWindow(Gtk.Window):
             self._entriestree.update_bookmarks(self._bookmarks)
 
             if is_connected:
-                self._status_label.set_text("Bookmarks: synced to drive")
+                self._status_label.set_text("Drive: synced")
             else:
-                self._status_label.set_text("Bookmarks: Not connected, using local cache")
+                self._status_label.set_text("Drive: Not synced, read-only from cache")
             return False
 
         GLib.timeout_add(0, update_bookmarks)
@@ -202,6 +202,9 @@ class EntryWindow(Gtk.Window):
                 # No XID yet
                 raise
         return self._xid
+
+    def explicit_authentication_needed_callback(self):
+        self._status_label.set_text("Drive: Authentication needed. Using local cache.")
 
     def show(self):
         self.connect("delete-event", Gtk.main_quit)
