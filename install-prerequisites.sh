@@ -22,8 +22,8 @@ then
 	PACKAGES="
 		dconf-cli
 		python-gi
-		python-pip
-		libpython-dev
+		python3-pip
+		libpython3-dev
 	"
 elif [ "$OS" = "Linux Mint" ]
 then
@@ -32,7 +32,7 @@ then
 		dconf-cli
 		python-gi
                 build-essential
-		python-pip
+		python3-pip
 		libpython-dev
 	"
 else
