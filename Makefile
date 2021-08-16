@@ -10,7 +10,7 @@ install: launch
 	@$(MAKE) requirements >> requirements.log 2>&1
 	@echo 'Installing switcher... (see log in installation.log)'
 	@sudo mkdir -p ${INSTALL_DIR} >> installation.log 2>&1
-	@sudo cp switcher.py windowcontrol.py listfilter.py tabcontrol.py pidfile.py glib_wrappers.py launch browser-agent/api_proxy_native_app.py ${INSTALL_DIR} >> installation.log 2>&1
+	@sudo cp switcher.py windowcontrol.py listfilter.py tabcontrol.py pidfile.py glib_wrappers.py launch browser-agent/api_proxy_native_app.py keycodes.py ${INSTALL_DIR} >> installation.log 2>&1
 	@echo Creating PID file... >> installation.log 2>&1
 	@touch ${LOCKFILE_PATH}
 	@echo Setting the keyboard shortcut... >> installation.log 2>&1
