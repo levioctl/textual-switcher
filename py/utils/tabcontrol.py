@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import struct
 import logging
 import os.path
@@ -24,7 +25,7 @@ class BrowserTabLister(object):
 
     def __init__(self, pid, update_tabs_callback):
         self.pid = pid
-        self._is_updated = True
+        self._is_current_read_complete = True
         self._update_tabs_callback = update_tabs_callback
         self._is_new_list_tab_request = True
         self._nr_retries_left = 1000
@@ -33,7 +34,7 @@ class BrowserTabLister(object):
         try:
             self.in_fd = os.open(in_pipe_filename, os.O_RDONLY | os.O_NONBLOCK)
         except Exception as ex:
-            print('Failed to in out FD for browser PID {}: {}'.format(pid, str(ex)))
+            print('Failed to open in FD for browser PID {}: {}'.format(pid, str(ex)))
             raise ApiProxyNotReady(pid)
 
         out_pipe_filename = self.OUT_PIPE_FILENAME % (pid,)
@@ -48,24 +49,25 @@ class BrowserTabLister(object):
                 print("Failed closing the in FD")
             raise ApiProxyNotReady(pid)
 
-        self.payload = ""
+        self.payload = bytes()
         self.message_length = None
         self._read_leftovers_from_prev_runs__in_pipe()
 
     def _read_leftovers_from_prev_runs__in_pipe(self):
-        while True:
+        keep_reading = True
+        while keep_reading:
             try:
                 os.read(self.in_fd, 1024)
             except OSError as ex:
                 if ex.errno == 11:
                     print("No more data in pipe")
-                    break
+                    keep_reading = False
                 else:
                     print("Unexpecter error while draining pipe from previous runs:")
-                    print(traceback.format_exc())
+                    traceback.print_exc()
             except:
                 print("Unexpecter error while draining pipe from previous runs:")
-                print(traceback.format_exc())
+                traceback.print_exc()
 
     def read(self):
         # Read length if new payload
@@ -84,7 +86,7 @@ class BrowserTabLister(object):
             nr_bytes_left_to_read = self.message_length - len(self.payload)
             try:
                 #print('{}: reading 1024 bytes ({} left)'.format(self.in_fd, nr_bytes_left_to_read))
-                chunk = os.read(self.in_fd, min(nr_bytes_left_to_read, 1024))
+                chunk = os.read(self.in_fd, min(nr_bytes_left_to_read, 32768))
             except IOError as ex:
                 if ex.errno == 32:
                     #print("{}: will try again later".format(self.in_fd))
@@ -100,7 +102,7 @@ class BrowserTabLister(object):
             self.payload += chunk
 
             read_counter += 1
-            if read_counter >= 99999:
+            if read_counter >= 9999:
                 # Just a warning because this happens sometimes, not sure why
                 print("{}: Infinite read from pipe. Dismissing message".format(self.in_fd))
                 return None
@@ -112,17 +114,18 @@ class BrowserTabLister(object):
             print("{}: Could not decode incoming payload: {}".format(self.in_fd, self.payload))
 
         result = self.payload
-        self.payload = ""
+        self.payload = bytes()
         self.message_length = None
         return result
 
     def async_move_to_tab(self, tab_id):
         command = 'move_to_tab:%d;' % (tab_id)
+        print(command)
         os.write(self._out_fd, command)
 
     def async_list_tabs(self):
-        if self._is_updated:
-            self._is_updated = False
+        if self._is_current_read_complete:
+            self._is_current_read_complete = False
             self._is_new_list_tab_request = True
 
             # Schedule tablist in thread
@@ -141,7 +144,7 @@ class BrowserTabLister(object):
         os.write(self._out_fd, command)
 
     def _send_list_tabs_command(self, pid):
-        os.write(self._out_fd, 'list_tabs;')
+        os.write(self._out_fd, 'list_tabs;'.encode('utf-8'))
 
     def _clean_fds(self):
         for fd in [self.in_fd, self.out_fd]:
@@ -157,34 +160,35 @@ class BrowserTabLister(object):
 
     def _receive_message_from_api_proxy(self, *args, **kwargs):
         # Check if we got updated by the fd-based callback before the timer-tick-based callback
-        if self._is_updated:
-            return False
+        if self._is_current_read_complete or self._nr_retries_left == 0:
+            whether_to_repeat = False
 
-        self._nr_retries_left = max(0, self._nr_retries_left - 1)
-        if self._nr_retries_left == 0:
-            self._is_updated = True
-            return False
+        else:
+            # Update #retries
+            self._nr_retries_left = max(0, self._nr_retries_left - 1)
 
-        content = None
-        try:
-            content = self.read()
-        except ApiProxyFdContentionTryAgainLater:
-            print("scheduling another list tabs (self._is_updated stays False)")
-        except Exception as ex:
-            print(str(ex))
-            print(type(ex))
-
-        if content is not None:
+            # Try reading
+            content = None
             try:
-                tabs = json.loads(content)
-            except:
-                print('cannot load content of size {}:'.format(len(content)))
-                return
+                content = self.read()
+            except ApiProxyFdContentionTryAgainLater:
+                print("scheduling another list tabs ({})".format(time.time()))
+            except Exception as ex:
+                traceback.print_exc()
 
-            self._update_tabs_callback(self.pid, tabs)
-            self._is_updated = True
+            if content is not None:
+                # Try decode JSON
+                try:
+                    tabs = json.loads(content)
+                    self._is_current_read_complete = True
+                except:
+                    print('cannot load content of size {}:'.format(len(content)))
+                    traceback.print_exc()
 
-        whether_to_repeat = not self._is_updated
+                self._update_tabs_callback(self.pid, tabs)
+
+            whether_to_repeat = self._nr_retries_left and not self._is_current_read_complete
+
         return whether_to_repeat
 
 

@@ -178,7 +178,7 @@ class EntryWindow(Gtk.Window):
 
         # Update windows local cache
         self._windows = {window_xid: window_entry.WindowEntry(window, self._entriestree.ICON_SIZE)
-            for window_xid, window in windows.iteritems()}
+            for window_xid, window in windows.items()}
 
         # Refresh the treeview
         self._entriestree.update_windows(self._windows)
@@ -204,7 +204,7 @@ class EntryWindow(Gtk.Window):
         return self._xid
 
     def explicit_authentication_needed_callback(self):
-        self._status_label.set_text("Drive: Authentication needed. Using local cache.")
+        self._status_label.set_text("Bookmarks: Authentication needed to sync")
 
     def show(self):
         self.connect("delete-event", Gtk.main_quit)

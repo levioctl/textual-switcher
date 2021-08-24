@@ -4,7 +4,7 @@ from gi.repository import Gtk
 gi.require_version('Wnck', '3.0')
 from gi.repository import Wnck, GLib
 
-import glib_wrappers
+from utils import glib_wrappers
 from utils import window
 
 
@@ -52,7 +52,7 @@ def parse_wlist_output(wlist_output):
     windows = list()
     for line in wlist_output.splitlines():
         _window = window.Window()
-        xid_hex_str, line = line.split(" ", 1)
+        xid_hex_str, line = line.decode('utf-8').split(" ", 1)
         _window.xid = int(xid_hex_str, 16)
         line = line.lstrip()
         _window.desktop_id, line = line.split(" ", 1)

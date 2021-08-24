@@ -26,7 +26,7 @@ KEYCODES = {'Escape'    : 9,
            }
 
 
-KEYCODE_TO_CHR = {value: key for (key, value) in KEYCODES.iteritems()}
+KEYCODE_TO_CHR = {value: key for (key, value) in KEYCODES.items()}
 
 
 def parse_keycode_to_textual_repr(keycode, is_ctrl_pressed, is_shift_pressed):

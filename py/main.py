@@ -31,7 +31,7 @@ class EntriesWindowController(entrieswindow.EntryWindow):
         }
         # Transform dict values (classes) to objects
         gui_apps_copy = dict(self._gui_apps)
-        for gui_app_name, gui_app_class in self._gui_apps.iteritems():
+        for gui_app_name, gui_app_class in self._gui_apps.items():
             self._gui_apps[gui_app_name] = gui_app_class(self._entries_model, self._entries_view, self._switch_app)
 
         # Set startup app

@@ -63,7 +63,7 @@ def add_binding_to_list_entry(new_binding_path, window_manager):
 
 
 def set_binding_entry(binding_values, entry_path, window_manager):
-    for name, value in binding_values.iteritems():
+    for name, value in binding_values.items():
         binding_path = "{}/{}".format(entry_path, name)
         dconf_write(binding_path, value)
 

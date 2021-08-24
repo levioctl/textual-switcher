@@ -37,5 +37,5 @@ class ScoreManager(object):
     def get_max_score_uids(self):
         if not self._score_map:
             return None
-        max_score = max(self._score_map.itervalues())
-        return [uid for uid, score in self._score_map.iteritems() if score == max_score]
+        max_score = max(self._score_map.values())
+        return [uid for uid, score in self._score_map.items() if score == max_score]

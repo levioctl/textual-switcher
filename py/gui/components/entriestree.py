@@ -201,7 +201,7 @@ class EntriesTree(object):
     def update_tabs(self, pid, tabs):
         # Validate
         # Make sure window is in local cache
-        matching_windows = [window for window in self._windows.itervalues() if window.get_pid() == pid]
+        matching_windows = [window for window in self._windows.values() if window.get_pid() == pid]
         if not matching_windows:
             print("Received tabs for a nonexistent window: {}".format(pid))
             return
@@ -443,7 +443,8 @@ class EntriesTree(object):
             if icon is not None:
                 self._update_tab_icon(tab)
 
-        glib_wrappers.async_get_url(fav_icon_url, callback)
+        if not fav_icon_url.startswith('chrome://'):
+            glib_wrappers.async_get_url(fav_icon_url, callback)
 
     def get_icon_from_favicon_url(self, tab):
         image = self.try_parse_icon_from_favicon_inline_contents(tab['favIconUrl'])
@@ -497,7 +498,7 @@ class EntriesTree(object):
 
         # Set title as token
         window_token = window.get_label()
-        window_type_str = window.window.wm_class.decode('utf-8')
+        window_type_str = window.window.wm_class
         window_score = self.get_score(window_token, window_type_str)
         window_uid = (window_id, 0, "")
         self._score_manager.set_score(window_uid, window_score, window.get_label())
@@ -534,7 +535,7 @@ class EntriesTree(object):
         self._score_manager.reset()
 
         # Update visibility of windows and tabs
-        for window_id, window in self._windows.iteritems():
+        for window_id, window in self._windows.items():
             self._update_visibility_map_for_window_and_its_tabs(window_id, window)
 
         # Invoke recursive map update function on all root nodes

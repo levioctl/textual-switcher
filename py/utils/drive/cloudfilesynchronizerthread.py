@@ -2,93 +2,57 @@ import threading
 import os
 import time
 import traceback
-import Queue
+import queue
 import threading
 import traceback
-import gdrive_client
+
+from utils.drive import gdrive_client
 
 
 class CloudFileSynchronizerThread(threading.Thread):
-    LOCAL_DIR = os.path.expanduser("~/.config/textual-switcher")
-
     def __init__(self,
                  filename,
                  connected_callback,
                  disconnected_callback,
                  get_contents_callback,
                  get_local_cache_callback,
-                 authentication_needed_callback,
+                 browser_authentication_needed,
                  write_callback):
         self._filename = filename
         self._external_connected_callback = connected_callback
         self._disconnected_callback = disconnected_callback
         self._get_contents_callback = get_contents_callback
         self._get_local_cache_callback = get_local_cache_callback
-        self._authentication_needed_callback = authentication_needed_callback
+        self._browser_authentication_needed = browser_authentication_needed
         self._write_callback = write_callback
         self._content = None
         self._cloud_file_synchronizer = None
-        self._incoming_requests = Queue.Queue()
+        self._incoming_requests = queue.Queue()
         self._local_cache = None
+        self._gdrive_client = gdrive_client.GoogleDriveClient()
         self._cloud_file_synchronizer = gdrive_client.GoogleDriveFileSynchronizer(self._filename,
-                                                                     self._connected_callback,
-                                                                     create_if_does_not_exist=True)
-        self._user_invoked_explicit_authentication_event = threading.Event()
-        self._connected_callback_event = threading.Event()
-        super(CloudFileSynchronizerThread, self).__init__()
+            self._gdrive_client)
+        self._user_invoked_browser_authentication = threading.Event()
+        super().__init__()
         self.daemon = True
 
     def is_connected_to_drive(self):
-        return self._cloud_file_synchronizer.is_authenticated()
+        return self._gdrive_client.is_connected()
 
     def run(self):
-        contents = self._read_cache_once()
-        if contents is not None:
-            self._get_local_cache_callback(contents)
-
         while True:
-            # If not authenticated by local credentials, wait for user to actively invoke
-            # authentication process using the webbrowser
-            while not self._cloud_file_synchronizer.is_authenticated():
-                # Tell the user that explicit authentication is needd
-                self._authentication_needed_callback()
-                # Wait for authentication event
-                print("Waiting for user to order explicit authentication")
-                self._user_invoked_explicit_authentication_event.wait()
-                # User invoked an explicit auth. request. Do it
-                print("Fetching credentials explicitly...")
-                self._cloud_file_synchronizer.try_to_authenticate_explicitly()
-                # Wait until authenticated, before listening for commands
-                print("Waiting for explicit authentication...")
-                self._connected_callback_event.wait()
-                print("Now connected.")
+            self.run_once()
 
-            # Inform main loop that connection is established
+    def run_once(self):
+        # Connecte if not connected
+        if not self._gdrive_client.is_connected():
+            self._connect()
+
+            # Inform caller that connection is established
             self._external_connected_callback()
 
-            # Listen to requests
-            try:
-                request = self._incoming_requests.get(block=True)
-                if request['type'] == 'write':
-                    with open(self._filename, "w") as local_file:
-                        local_file.write(request['contents'])
-
-                    print("Writing to cloud once")
-                    self._cloud_file_synchronizer.write_to_remote_file()
-                    self._write_callback()
-                elif request['type'] == 'read':
-                    contents = self._cloud_file_synchronizer.read_remote_file()
-                    self._get_contents_callback(contents)
-                elif request['type'] == 'read_cache':
-                    contents = self._read_cache_once()
-                    if contents is not None:
-                        self._get_local_cache_callback(contents)
-            except Exception as ex:
-                print("Cloud connection failed: {}".format(traceback.format_exc()))
-                self._disconnected_callback()
-
-    def _connected_callback(self):
-        self._connected_callback_event.set()
+        # Listen and serve request
+        self._serve_requests()
 
     def _read_cache_once(self):
         print("Reading local cache...")
@@ -119,4 +83,46 @@ class CloudFileSynchronizerThread(threading.Thread):
         return self._local_cache
 
     def try_to_connect_explicitly(self):
-        self._user_invoked_explicit_authentication_event.set()
+        self._user_invoked_browser_authentication.set()
+
+    def _connect(self):
+        try:
+            # Try connecting with local token
+            self._gdrive_client.connect_with_local_token()
+        except gdrive_client.LocalTokenInvalid__ShouldTryRefreshWithBrowserException:
+            # Not authenticated by local credentials, wait for user to actively invoke
+            # authentication process using the webbrowser
+
+            # First, Tell the user that explicit authentication is needed
+            self._browser_authentication_needed()
+            print('Connected with local token')
+
+            # Wait for user to approve browser authentication flow
+            print("Waiting for user to order explicit authentication")
+            self._user_invoked_browser_authentication.wait()
+
+            # User invoked an explicit auth. request. Do it
+            print("Fetching credentials explicitly...")
+            self._gdrive_client.connect_with_browser()
+            print("Now connected.")
+
+    def _serve_requests(self):
+        try:
+            request = self._incoming_requests.get(block=True)
+            if request['type'] == 'write':
+                with open(self._filename, "w") as local_file:
+                    local_file.write(request['contents'])
+
+                print("Writing to cloud once")
+                self._cloud_file_synchronizer.write_to_remote_file()
+                self._write_callback()
+            elif request['type'] == 'read':
+                contents = self._cloud_file_synchronizer.read_remote_file()
+                self._get_contents_callback(contents)
+            elif request['type'] == 'read_cache':
+                contents = self._read_cache_once()
+                if contents is not None:
+                    self._get_local_cache_callback(contents)
+        except Exception as ex:
+            print("Cloud connection failed: {}".format(traceback.format_exc()))
+            self._disconnected_callback()
