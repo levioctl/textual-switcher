@@ -65,6 +65,11 @@ class FakeGoogleDriveClient:
 
 class Test(unittest.TestCase):
     LOCAL_CACHE_FILENAME = '/tmp/test-bookmarks.yaml'
+    EXAMPLE_BOOKMARKS = [{'children': [
+            {'url': 'https://example.com', 'name': 'example', 'guid': 'some-id', 'children': []},
+            {'url': 'https://example.com', 'name': 'another-example', 'guid': 'another-id', 'children': []},
+        ]}]
+
     @mock.patch('utils.drive.cloudfilesynchronizerthread.CloudFileSynchronizerThread')
     @mock.patch('utils.drive.gdrive_client.GoogleDriveClient')
     def setUp(self, gdrive_client_mock, sync_thread_class):
@@ -72,11 +77,6 @@ class Test(unittest.TestCase):
 
         # Mock background sync thread's scheduling
         sync_thread_class.side_effect = FakeCloudFileSyncThread
-
-        # Set local cache filename
-        bookmark_store.BookmarkStore.BOOKMARKS_YAML_FILENAME = self.LOCAL_CACHE_FILENAME
-        if os.path.exists(self.LOCAL_CACHE_FILENAME):
-            os.unlink(self.LOCAL_CACHE_FILENAME)
 
         # Fake implementation for the cloud file syncer thread
         #self.syncer = FakeSyncer.instance
@@ -94,6 +94,13 @@ class Test(unittest.TestCase):
         self.sync_thread = FakeCloudFileSyncThread.INSTANCE
         self.gdrive_client = fake_gdrive_client
         assert self.gdrive_client is not None
+
+        # Set example bookmarks in local cache
+        self.gdrive_client.bookmarks = self.EXAMPLE_BOOKMARKS
+        # Set example bookmarks in drive
+        bookmark_store.BookmarkStore.BOOKMARKS_YAML_FILENAME = self.LOCAL_CACHE_FILENAME
+        with open(self.LOCAL_CACHE_FILENAME, 'w') as local_cache_file:
+            yaml.dump(self.EXAMPLE_BOOKMARKS, local_cache_file)
 
     def test_async_connect_invokes_connected_callback_on_connection_established(self):
         # Run
@@ -135,15 +142,7 @@ class Test(unittest.TestCase):
                 ('connected', (), {})  # After user invoked browser connection, the callback is called
             ])
 
-    def test_async_list_bookmarks__returns_bookmarks_when_connected_and_synced_empty_list(self):
-        # Setup
-        self.gdrive_client.bookmarks = [{'children': [
-            {'url': 'https://example.com', 'name': 'example', 'guid': 'some-id', 'children': []},
-            {'url': 'https://example.com', 'name': 'another-example', 'guid': 'another-id', 'children': []},
-        ]}]
-        #self.syncer.bookmarks_in_local_cache[0]['children'].append(bookmarks)
-        #self.syncer.bookmarks_in_drive[0]['children'].append(bookmarks)
-
+    def test_async_list_bookmarks__returns_bookmarks_when_connected_and_synced(self):
         # Run
         self.tested.async_connect()
         self.tested.async_list_bookmarks()
@@ -162,6 +161,34 @@ class Test(unittest.TestCase):
              {'is_connected': True})
             )
         self.assertEquals(len(self._response_callback_calls), 2)
+
+    def test_async_list_bookmarks__returns_bookmarks_and_creates_cache_when_not_synced(self):
+        # Setup (remove cache)
+        os.unlink(self.LOCAL_CACHE_FILENAME)
+
+        # Run
+        self.tested.async_connect()
+        self.tested.async_list_bookmarks()
+
+        # Schedule thread
+        self._artificially_run_syncer_thread()
+
+        # Validate
+        self.assertEquals(self._response_callback_calls[0], ('connected', (), {}))
+        # Validate bookmarks
+        self.assertEquals(self._response_callback_calls[1],
+            ('list_bookmarks',
+             ([
+                {'children': [], 'guid': 'some-id', 'name': 'example', 'url': 'https://example.com'},
+                {'children': [], 'guid': 'another-id', 'name': 'another-example', 'url': 'https://example.com'}
+              ],),
+             {'is_connected': True})
+            )
+        self.assertEquals(len(self._response_callback_calls), 2)
+        # Validate cache creation
+        with open(self.LOCAL_CACHE_FILENAME) as cache_file:
+            cache = yaml.safe_load(cache_file)
+        self.assertEquals(cache, self.LOCAL_CACHE_FILENAME)
 
     def _list_bookmarks_callback(self, *args, **kwargs):
         self._response_callback_calls.append(('list_bookmarks', args, kwargs))

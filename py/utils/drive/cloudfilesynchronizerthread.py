@@ -71,16 +71,11 @@ class CloudFileSynchronizerThread(threading.Thread):
         return contents
 
     def async_read(self):
+        self._incoming_requests.put({'type': 'read-cache'}, block=True)
         self._incoming_requests.put({'type': 'read'}, block=True)
 
     def async_write(self, contents):
         self._incoming_requests.put({'type': 'write', 'contents': contents}, block=True)
-
-    def async_read_local_cache(self):
-        self._incoming_requests.put({'type': 'read_cache'}, block=True)
-
-    def get_current_cache(self):
-        return self._local_cache
 
     def try_to_connect_explicitly(self):
         self._user_invoked_browser_authentication.set()
@@ -119,10 +114,18 @@ class CloudFileSynchronizerThread(threading.Thread):
             elif request['type'] == 'read':
                 contents = self._cloud_file_synchronizer.read_remote_file()
                 self._get_contents_callback(contents)
+
+                # Check sync status -
+                # Contents from drive and local cache can be in one of the following states:
+                # 1. Both are equal, in which case nothing is done in response
+                # 2. Local cache doesn't exist, in which case, it will be created with contents from drive
+                # 3. Drive file doesn't exist, in which case, it will be created with contents from cache
+                # 4. Both exist and are different, in which case, the user will be asked to resolve the
+                #    divergence by doing an async_write
             elif request['type'] == 'read_cache':
-                contents = self._read_cache_once()
-                if contents is not None:
-                    self._get_local_cache_callback(contents)
+                self._local_cache = self._read_cache_once()
+                if self._local_cache is not None:
+                    self._get_local_cache_callback(self._local_cache)
         except Exception as ex:
             print("Cloud connection failed: {}".format(traceback.format_exc()))
             self._disconnected_callback()

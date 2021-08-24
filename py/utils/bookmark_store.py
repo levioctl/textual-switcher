@@ -44,8 +44,6 @@ class BookmarkStore(object):
         self._cloud_bookmarks_syncer.start()
 
     def async_list_bookmarks(self):
-        if self._bookmarks is None:
-            self._cloud_bookmarks_syncer.async_read_local_cache()
         self._cloud_bookmarks_syncer.async_read()
 
     def add_bookmark(self, url, title, parent_dir_entry_guid):
@@ -323,7 +321,7 @@ class BookmarkStore(object):
 
     def _fix_bookmarks(self):
         was_fix_needed = False
-        
+
         # Scan the bookmarks tree to fix missing attributes
         if self._bookmarks:
 
