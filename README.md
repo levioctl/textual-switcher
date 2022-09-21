@@ -20,6 +20,6 @@ Installation includes 3 parts:
 ### How to install
 ```
 $ git clone https://github.com/levioctl/textual-switcher/
-$ cd textua-switcher
+$ cd textual-switcher
 $ make install
 ```
