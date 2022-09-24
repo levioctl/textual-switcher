@@ -28,11 +28,12 @@ class CloudFileSynchronizerThread(threading.Thread):
         self._content = None
         self._cloud_file_synchronizer = None
         self._incoming_requests = queue.Queue()
-        self._local_cache = None
+        self._local_cache_contents = None
         self._gdrive_client = gdrive_client.GoogleDriveClient()
         self._cloud_file_synchronizer = gdrive_client.GoogleDriveFileSynchronizer(self._filename,
             self._gdrive_client)
         self._user_invoked_browser_authentication = threading.Event()
+        self._sync_status = 'idle'
         super().__init__()
         self.daemon = True
 
@@ -56,19 +57,17 @@ class CloudFileSynchronizerThread(threading.Thread):
 
     def _read_cache_once(self):
         print("Reading local cache...")
-        contents = None
+        self._local_cache_contents = None
         try:
             with open(self._filename) as local_file:
-                contents = local_file.read()
+                self._local_cache_contents = local_file.read()
         except IOError as ex:
             if ex.errno == 2:
                 print("Local cache does not exist.")
             else:
                 print("Could not read bookmarks from local cache: {}".format(traceback.format_exc()))
-        else:
-            print("Could not read bookmarks from local cache: {}".format(traceback.format_exc()))
 
-        return contents
+        return self._local_cache_contents
 
     def async_read(self):
         self._incoming_requests.put({'type': 'read-cache'}, block=True)
@@ -101,31 +100,68 @@ class CloudFileSynchronizerThread(threading.Thread):
             self._gdrive_client.connect_with_browser()
             print("Now connected.")
 
+        self._sync_status = 'connected-but-unknown'
+
+    def _write_local_cache(self, contents):
+        print('Writing to local cache')
+        with open(self._filename, "w") as local_file:
+            local_file.write(request['contents'])
+        self._local_cache_contents = contents
+
+    def _write_to_cloud(self, contents):
+        print("Writing to cloud once")
+        self._cloud_file_synchronizer.write_to_remote_file()
+
     def _serve_requests(self):
         try:
             request = self._incoming_requests.get(block=True)
             if request['type'] == 'write':
-                with open(self._filename, "w") as local_file:
-                    local_file.write(request['contents'])
-
-                print("Writing to cloud once")
-                self._cloud_file_synchronizer.write_to_remote_file()
+                self._write_local_cache(contents=request['contents'])
+                self._write_to_cloud(contents=request['contents'])
                 self._write_callback()
-            elif request['type'] == 'read':
-                contents = self._cloud_file_synchronizer.read_remote_file()
-                self._get_contents_callback(contents)
 
-                # Check sync status -
-                # Contents from drive and local cache can be in one of the following states:
-                # 1. Both are equal, in which case nothing is done in response
-                # 2. Local cache doesn't exist, in which case, it will be created with contents from drive
-                # 3. Drive file doesn't exist, in which case, it will be created with contents from cache
-                # 4. Both exist and are different, in which case, the user will be asked to resolve the
-                #    divergence by doing an async_write
-            elif request['type'] == 'read_cache':
-                self._local_cache = self._read_cache_once()
-                if self._local_cache is not None:
-                    self._get_local_cache_callback(self._local_cache)
+            elif request['type'] == 'read':
+                # Read local cache and cloud file
+                self._read_cache_once()
+                cloud_file_contents = self._cloud_file_synchronizer.read_remote_file()
+
+                # Make booleans for convneience
+                cloud_file_exists = cloud_file_contents is not None
+                local_cache_exists = self._local_cache_contents is not None
+
+                # Both exist and are equal - return contents
+                if (cloud_file_contents == self._local_cache_contents and local_cache_exists
+                        and cloud_file_exists):
+                    self._get_contents_callback(contents)
+
+                # Local cache doesn't exist, cloud file does exist - create local cache
+                elif cloud_file_exists and not local_cache_exists:
+                    self._write_local_cache(contents=cloud_file_contents)
+                    self._get_contents_callback(contents)
+
+                # cloud file doesn't exist, local cache exists - return cache and write to cloud
+                elif not cloud_file_exists and local_cache_exists:
+                    # Provide the local cache first
+                    self._get_local_cache_callback(self._local_cache_contents)
+
+                    # Write to cloud file
+                    self._write_to_cloud(contents=cloud_file_contents)
+
+                # Both exist and are different
+                elif cloud_file_contents is not None and self._local_cache_contents is not None:
+                    raise Exception('implement me')
+
+                elif cloud_file_contents is None and self._local_cache_contents is None:
+                    raise Exception('implement me')
+
+                else:
+                    assert False, 'huh'
+
+            elif request['type'] == 'read-cache':
+                self._read_cache_once()
+                if self._local_cache_contents is not None:
+                    self._get_local_cache_callback(self._local_cache_contents)
+
         except Exception as ex:
             print("Cloud connection failed: {}".format(traceback.format_exc()))
             self._disconnected_callback()

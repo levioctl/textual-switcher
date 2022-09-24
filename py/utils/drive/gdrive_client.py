@@ -29,8 +29,13 @@ class GoogleDriveClient(object):
         if os.path.exists('token.json'):
             self._creds = Credentials.from_authorized_user_file('token.json', self.SCOPES)
             if self._creds.valid:
+                print('creds are valid. creating service...')
                 self._service = build('drive', 'v3', credentials=self._creds)
                 print('Connected with local token.')
+            else:
+                print('creds are not valid')
+        else:
+            print('token does not exist')
 
         if self._service is None:
             raise LocalTokenInvalid__ShouldTryRefreshWithBrowserException()
@@ -108,9 +113,14 @@ class GoogleDriveFileSynchronizer(object):
         print('File created. ID: {}'.format(self._file_id))
 
     def read_remote_file(self):
+        """Read remote file. Return None if file does not exist on remote."""
         if self._file_id is None:
             self._read_file_id()
+
+        if self._file_id is None:
+            return None
         print("Sending a request to drive to read file {}".format(self._file_id))
+        #contents = self._client.read_file(self._file_id)
         contents = self._client.read_file(self._file_id)
         return contents
 
@@ -147,9 +157,11 @@ if __name__ == "__main__":
         print('Trying to connect with browser...')
         client.connect_with_browser()
 
-    bookmarks_file_syncer = GoogleDriveFileSynchronizer('/tmp/bookmarks.yaml',
+    bookmarks_file_syncer = GoogleDriveFileSynchronizer('/tmp/bookmarks2.yaml',
                                                         client=client
                                                         )
+    import pdb; pdb.set_trace()
+    contents = bookmarks_file_syncer.read_remote_file()
 
     print('Connected. writing to file...')
     with open('/tmp/bookmarks.yaml', 'w') as f:

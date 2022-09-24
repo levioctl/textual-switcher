@@ -39,8 +39,6 @@ class BookmarkStore(object):
                 self._get_local_cache_callback,
                 self._explicit_authentication_needed_callback,
                 self._write_callback)
-
-    def async_connect(self):
         self._cloud_bookmarks_syncer.start()
 
     def async_list_bookmarks(self):
@@ -317,7 +315,7 @@ class BookmarkStore(object):
         if was_fix_needed:
             self._async_write()
         else:
-            self._invoke_external_bookmark_update_callback(is_connected=True)
+            self._invoke_external_bookmark_update_callback(source='drive')
 
     def _fix_bookmarks(self):
         was_fix_needed = False
@@ -345,11 +343,9 @@ class BookmarkStore(object):
         return was_fix_needed
 
     def _get_local_cache_callback(self, bookmarks_yaml_cache):
-        if self._bookmarks is None:
-            self._update_state(bookmarks_yaml_cache)
-            self._invoke_external_bookmark_update_callback(is_connected=False)
-        else:
-            print("Bookmarks read from local cache, but local cache is not empty.")
+        self._update_state(bookmarks_yaml_cache)
+        self._invoke_external_bookmark_update_callback(source='local-cache')
+        print("Bookmarks read from local cache, but local cache is not empty.")
 
     def _explicit_authentication_needed_callback(self):
         print('Please authenticate using web browser')
@@ -374,8 +370,8 @@ class BookmarkStore(object):
     def _write_callback(self):
         print("Bookmarks written to cloud")
         # Wrote to cloud once. Invoking callback to update bookmarks
-        self._invoke_external_bookmark_update_callback(is_connected=True)
+        self._invoke_external_bookmark_update_callback(source='cloud')
 
-    def _invoke_external_bookmark_update_callback(self, is_connected):
+    def _invoke_external_bookmark_update_callback(self, source):
         bookmarks = self._bookmarks
-        self._list_bookmarks_external_callback(bookmarks[0]['children'], is_connected=is_connected)
+        self._list_bookmarks_external_callback(bookmarks[0]['children'])
