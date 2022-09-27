@@ -3,12 +3,8 @@ from curses.ascii import isprint
 from fuzzywuzzy import fuzz
 
 
-def filter_printable(string):
-    if isinstance(string, unicode):
-        result = unicodedata.normalize('NFKD', string).encode('ascii', 'ignore')
-    else:
-        result = string
-    return string
+def filter_printable(s):
+    return ''.join(c for c in s if c in string.printable)
 
 
 class ListFilter(object):

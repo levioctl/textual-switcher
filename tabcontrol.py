@@ -50,7 +50,7 @@ class BrowserTabLister(object):
         try:
             self.in_fd = os.open(in_pipe_filename, os.O_RDONLY | os.O_NONBLOCK)
         except Exception as ex:
-            print('Failed to in out FD for browser PID {}: {}'.format(pid, str(ex)))
+            print('Failed to open in FD for browser PID {}: {}'.format(pid, str(ex)))
             raise ApiProxyNotReady(pid)
 
         out_pipe_filename = self.OUT_PIPE_FILENAME % (pid,)
@@ -65,7 +65,7 @@ class BrowserTabLister(object):
                 print("Failed closing the in FD")
             raise ApiProxyNotReady(pid)
 
-        self.payload = ""
+        self.payload = bytes()
         self.message_length = None
         self._read_leftovers_from_prev_runs__in_pipe()
 
@@ -124,21 +124,23 @@ class BrowserTabLister(object):
 
         # Decode
         try:
-            self.payload = self.payload.decode("utf-8")
+            result = self.payload.decode("utf-8")
         except Exception as ex:
             print("{}: Could not decode incoming payload: {}".format(self.in_fd, self.payload))
+            result = ''
+        finally:
+            self.payload = bytes()
+            self.message_length = None
 
-        result = self.payload
-        self.payload = ""
-        self.message_length = None
         return result
 
     def async_move_to_tab(self, tab_id):
         command = 'move_to_tab:%d;' % (tab_id)
+        command = command.encode('utf-8')
         os.write(self._out_fd, command)
 
     def send_list_tabs_command(self, pid):
-        os.write(self._out_fd, 'list_tabs;')
+        os.write(self._out_fd, b'list_tabs;')
 
 
     def async_list_tabs(self):
@@ -187,8 +189,7 @@ class BrowserTabLister(object):
         except ApiProxyFdContentionTryAgainLater:
             print("scheduling another list tabs (self._is_updated stays False)")
         except Exception as ex:
-            print(str(ex))
-            print(type(ex))
+            print(traceback.format_exc())
 
         if content is not None:
             try:
@@ -275,7 +276,8 @@ class TabControl(object):
                         break
                 else:
                     # Parse image as URL
-                    glib_wrappers.async_get_url(url, self._tab_icon_ready)
+                    if url is not None and url:
+                        glib_wrappers.async_get_url(url, self._tab_icon_ready)
         return icon
 
     def _tab_icon_ready(self, url, contents):

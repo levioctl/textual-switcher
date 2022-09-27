@@ -88,7 +88,7 @@ class EntryWindow(Gtk.Window):
         treeview.connect("key-press-event", self._treeview_keypress)
         columns = {self._COL_NR_ICON: "Icon",
                    self._COL_NR_TITLE: "Title"}
-        for i, column_title in columns.iteritems():
+        for i, column_title in columns.items():
             renderer = Gtk.CellRendererText()
             column = Gtk.TreeViewColumn(column_title, renderer, text=i)
             if i == self._COL_NR_ICON:
@@ -397,14 +397,14 @@ class EntryWindow(Gtk.Window):
         title = row[self._COL_NR_TITLE]
         window = self._windows[window_id]
         token = title
-        if isinstance(token, str):
-            token = unicode(token, 'utf-8')
+        #if isinstance(token, str):
+        #    token = unicode(token, 'utf-8')
         tab_id = row[self._COL_NR_TAB_ID]
         is_tab = tab_id >= 0
         if window.pid in self._tabs:
             if window.is_browser() and not is_tab:
                 tabs = self._tabs[window.pid]
-                sep = unicode(' ', 'utf-8')
+                sep = ' '
                 token += sep.join(tab['title'] for tab in tabs)
             elif is_tab:
                 matching = [tab for tab in self._tabs[window.pid] if tab['id'] == tab_id]

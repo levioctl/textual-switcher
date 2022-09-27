@@ -1,4 +1,4 @@
-#!/usr/bin/python -u
+#!/usr/bin/python3 -u
 
 # Note that running python with the `-u` flag is required on Windows,
 # in order to ensure that stdin and stdout are opened in binary, rather
@@ -30,8 +30,9 @@ class ExtensionMessages(object):
 
     # Encode a message for transmission, given its content.
     @staticmethod
-    def _encode_message(message_content):
-        encoded_content = json.dumps(message_content)
+    def _encode_message(msg_bytes):
+        msg_str = msg_bytes.decode('utf-8')
+        encoded_content = json.dumps(msg_str)
         encoded_length = struct.pack('@I', len(encoded_content))
         return {'length': encoded_length, 'content': encoded_content}
 
@@ -39,11 +40,11 @@ class ExtensionMessages(object):
     @classmethod
     def send_message(cls, message):
         log("sending to app over pipe: {} bytes".format(len(message)))
-        messaegs = message.split(';')
-        for message in messaegs:
-            message = cls._encode_message(message)
-            sys.stdout.write(message['length'])
-            sys.stdout.write(message['content'])
+        messaegs = message.split(b';')
+        for msg_bytes in messaegs:
+            msg_dict = cls._encode_message(msg_bytes)
+            sys.stdout.buffer.write(msg_dict['length'])
+            sys.stdout.write(msg_dict['content'])
             sys.stdout.flush()
 
 
@@ -113,6 +114,7 @@ class SwitcherMessages(object):
 
     @staticmethod
     def _create_fifo(fifo_path):
+        log(f'Creating out FIFO in "{fifo_path}"')
         try:
             os.mkfifo(fifo_path)
         except OSError as ex:
@@ -206,6 +208,7 @@ class PointToPointPipesSwitch(object):
 
 
 def main():
+    log("Starting...")
     extension_messages = ExtensionMessages()
     switcher_messages = SwitcherMessages()
     messageSwitch = PointToPointPipesSwitch(a=extension_messages, b=switcher_messages)

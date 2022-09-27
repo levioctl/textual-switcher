@@ -21,19 +21,19 @@ then
 	PKG_MGR_CMD="sudo apt-get install -y"
 	PACKAGES="
 		dconf-cli
-		python-gi
-		python-pip
-		libpython-dev
+		python-gi-dev
+		python3-pip
+		libpython3-dev
 	"
 elif [ "$OS" = "Linux Mint" ]
 then
 	PKG_MGR_CMD="sudo apt-get install -y"
 	PACKAGES="
 		dconf-cli
-		python-gi
+		python-gi-dev
                 build-essential
-		python-pip
-		libpython-dev
+		python3-pip
+		libpython3-dev
 	"
 else
 	echo "Error: Package manager was not found."
@@ -44,5 +44,5 @@ echo Installing required packages...
 ${PKG_MGR_CMD} ${COMMON_PACKAGES} ${PACKAGES}
 
 echo Installing required python libraries...
-sudo pip install setuptools
-sudo pip install -r requirements.txt
+sudo pip3 install setuptools
+sudo pip3 install -r requirements.txt

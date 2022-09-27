@@ -8,7 +8,7 @@ import glib_wrappers
 
 
 class Window(object):
-    BROWSERS_WM_CLASSES = ["Navigator.Firefox", "google-chrome.Google-chrome"]
+    BROWSERS_WM_CLASSES = ["Navigator.Firefox", "google-chrome.Google-chrome", "Navigator.firefox-beta"]
 
     def __init__(self):
         self.xid = None
@@ -55,6 +55,7 @@ class WindowControl(object):
         windows = list()
         for line in wlist_output.splitlines():
             window = Window()
+            line = line.decode('utf-8')
             xid_hex_str, line = line.split(" ", 1)
             window.xid = int(xid_hex_str, 16)
             line = line.lstrip()
@@ -68,9 +69,12 @@ class WindowControl(object):
                 continue
             line = line.lstrip()
             window.hostname, line = line.split(" ", 1)
+            window.title = line.lstrip()
             if window.title == "Desktop":
                 continue
-            window.title = line.lstrip()
+            # Filter out non-existing windows, see https://askubuntu.com/questions/1345101/what-is-72-27bdh-and-0-27bdh
+            if window.title.startswith('@') and (window.title.endswith(';BDH') or window.title.endswith(';BDHF')):
+                continue
             windows.append(window)
         return windows
 

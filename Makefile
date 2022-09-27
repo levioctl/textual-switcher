@@ -16,7 +16,7 @@ install: launch
 	@echo Setting the keyboard shortcut... >> installation.log 2>&1
 	@$(MAKE) install_firefox_extension >> installation.log 2>&1
 	@$(MAKE) install_chrome_extension >> installation.log 2>&1
-	@python apply-binding.py ${KEY_BINDING} ${KEY_COMBINATION} >> installation.log 2>&1
+	@python3 apply-binding.py ${KEY_BINDING} ${KEY_COMBINATION} >> installation.log 2>&1
 	@echo Installation complete.
 	@echo
 	@echo '*****************************************************************************************'
